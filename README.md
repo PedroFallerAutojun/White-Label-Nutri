@@ -28,6 +28,54 @@ O script cria o ambiente virtual, instala as dependências, restaura o backup nu
 base local, roda o saneamento e sobe o servidor em <http://localhost:8000>.
 Sem o argumento do backup, ele prepara uma instância nova e vazia.
 
+### Já tenho PostgreSQL instalado
+
+Descubra a versão e as instâncias em execução:
+
+```powershell
+Get-Service *postgres*          # nomes trazem a versão, ex.: postgresql-x64-16
+psql --version
+```
+
+- **Versão 17 ou superior:** siga normalmente (informe a senha do usuário `postgres`).
+- **Versão anterior à 17:** ela não restaura o `BackupNutriJR`. Instale a 17 ao lado —
+  as duas convivem, e a nova normalmente fica na porta 5433:
+
+  ```powershell
+  winget install PostgreSQL.PostgreSQL.17
+  .\scripts\preparar_local_sem_docker.ps1 backups\BackupNutriJR -Porta 5433
+  ```
+
+### Senha do PostgreSQL esquecida
+
+Se você já tinha o PostgreSQL e não lembra a senha do usuário `postgres`, há dois caminhos.
+
+**Mais simples — instalar a 17 ao lado** (necessária de todo modo para o backup):
+durante a instalação você define uma senha nova, e a instância antiga fica intacta.
+Depois use `-Porta 5433` como acima.
+
+**Redefinir a senha da instância existente** (requer PowerShell como Administrador):
+
+```powershell
+# 1. localize o arquivo de configuração (ajuste a versão)
+$data = "$env:ProgramFiles\PostgreSQL\16\data"
+Copy-Item "$data\pg_hba.conf" "$data\pg_hba.conf.bak"       # backup antes de mexer
+
+# 2. libere temporariamente a autenticação local
+(Get-Content "$data\pg_hba.conf") -replace 'scram-sha-256|md5', 'trust' |
+    Set-Content "$data\pg_hba.conf"
+Restart-Service postgresql-x64-16
+
+# 3. defina a nova senha
+psql -U postgres -c "ALTER USER postgres PASSWORD \'novaSenha123\'"
+
+# 4. restaure a configuração original e reinicie
+Move-Item "$data\pg_hba.conf.bak" "$data\pg_hba.conf" -Force
+Restart-Service postgresql-x64-16
+```
+
+O passo 4 é obrigatório: sem ele, qualquer processo local conecta ao banco sem senha.
+
 ## Rodando com Docker (alternativa)
 
 Requisitos: **Docker** e **Docker Compose v2** (`docker compose version` deve responder).

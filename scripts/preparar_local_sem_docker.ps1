@@ -9,7 +9,10 @@
 param(
     [string]$Backup = "",
     [string]$Banco = "nutri",
-    [string]$UsuarioDb = "postgres"
+    [string]$UsuarioDb = "postgres",
+    # Porta do PostgreSQL. Se voce instalou a versao 17 ao lado de uma anterior,
+    # a nova normalmente fica em 5433 (veja: Get-Service *postgres*).
+    [int]$Porta = 5432
 )
 
 $ErrorActionPreference = "Stop"
@@ -74,10 +77,19 @@ if ($pastaPg -ne "") {
     Write-Host "PostgreSQL encontrado no PATH" -ForegroundColor Green
 }
 
-$versaoPg = (& psql --version) -replace '[^\d.]', '' -split '\.' | Select-Object -First 1
-if ([int]$versaoPg -lt 17 -and $Backup) {
-    Write-Host "Aviso: psql versao $versaoPg. O BackupNutriJR exige 17 ou superior." -ForegroundColor Yellow
-    Write-Host "A restauracao provavelmente falhara com 'unsupported version'."
+$versaoCliente = [int](((& psql --version) -replace '[^\d.]', '') -split '\.')[0]
+Write-Host "Cliente psql: versao $versaoCliente | porta escolhida: $Porta" -ForegroundColor Green
+if ($versaoCliente -lt 17 -and $Backup) {
+    Write-Host ""
+    Write-Host "Atencao: o cliente PostgreSQL e a versao $versaoCliente." -ForegroundColor Yellow
+    Write-Host "O BackupNutriJR foi gerado com pg_dump 17 e nao e restauravel por versoes"
+    Write-Host "anteriores (erro 'unsupported version'). Instale a 17:"
+    Write-Host "  winget install PostgreSQL.PostgreSQL.17"
+    Write-Host "Ela convivera com a instalacao atual, normalmente na porta 5433:"
+    Write-Host "  .\scripts\preparar_local_sem_docker.ps1 backups\BackupNutriJR -Porta 5433"
+    Write-Host ""
+    $resposta = Read-Host "Tentar mesmo assim? (s/N)"
+    if ($resposta -notmatch '^[sS]') { exit 1 }
 }
 
 if ($Backup -and -not (Test-Path $Backup)) {
@@ -111,19 +123,26 @@ if (-not $env:PGPASSWORD) {
 # A senha vai codificada na URL: simbolos como @ : / # quebrariam a conexao.
 $senhaUrl = [uri]::EscapeDataString($env:PGPASSWORD)
 $usuarioUrl = [uri]::EscapeDataString($UsuarioDb)
-$env:DATABASE_URL = "postgres://${usuarioUrl}:${senhaUrl}@127.0.0.1:5432/$Banco"
+$env:DATABASE_URL = "postgres://${usuarioUrl}:${senhaUrl}@127.0.0.1:$Porta/$Banco"
 $env:DJANGO_SETTINGS_MODULE = "config.settings.dev"
 
 if ($Backup) {
     Write-Host "==> recriando o banco '$Banco'" -ForegroundColor Cyan
-    & dropdb -U $UsuarioDb --if-exists --force $Banco
-    & createdb -U $UsuarioDb $Banco
-    if ($LASTEXITCODE -ne 0) { throw "falha ao criar o banco (senha correta?)" }
+    & dropdb -U $UsuarioDb -p $Porta --if-exists --force $Banco
+    & createdb -U $UsuarioDb -p $Porta $Banco
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host ""
+        Write-Host "Nao foi possivel criar o banco." -ForegroundColor Red
+        Write-Host "Causas comuns: senha incorreta, servico parado ou porta errada."
+        Write-Host "  servicos:  Get-Service *postgres*"
+        Write-Host "  esqueceu a senha? veja a secao 'Senha do PostgreSQL' no README"
+        throw "falha ao criar o banco"
+    }
 
     Write-Host "==> restaurando o backup (o arquivo original nao e alterado)" -ForegroundColor Cyan
     # pg_restore relata avisos benignos de propriedade/permissao; o -e nao e usado
     # de proposito para que a restauracao continue apesar deles.
-    & pg_restore --no-owner --no-privileges -U $UsuarioDb -d $Banco $Backup
+    & pg_restore --no-owner --no-privileges -U $UsuarioDb -p $Porta -d $Banco $Backup
     Write-Host "   (avisos de owner/ACL acima sao esperados e inofensivos)"
 
     Write-Host "==> reconhecendo o schema legado" -ForegroundColor Cyan
@@ -139,7 +158,7 @@ if ($Backup) {
     Write-Host "Os usuarios sao os reais do backup. Para criar um acesso local:"
     Write-Host "  .\.venv\Scripts\python.exe manage.py createsuperuser"
 } else {
-    & createdb -U $UsuarioDb $Banco 2>$null
+    & createdb -U $UsuarioDb -p $Porta $Banco 2>$null
     Write-Host "==> aplicando as migrations" -ForegroundColor Cyan
     & $py manage.py migrate --noinput
 
