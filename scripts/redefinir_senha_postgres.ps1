@@ -94,11 +94,22 @@ try {
             $linha
         }
     }
-    Set-Content $hba $novas -Encoding UTF8
+    # ATENCAO: nao usar Set-Content -Encoding UTF8 aqui. No Windows PowerShell 5.1
+    # isso grava um BOM, e o PostgreSQL se recusa a iniciar com BOM no pg_hba.conf
+    # ("FATAL: could not load pg_hba.conf"). Gravamos UTF-8 sem BOM.
+    $semBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllLines($hba, $novas, $semBom)
+
+    $primeirosBytes = [System.IO.File]::ReadAllBytes($hba)[0..2]
+    if ($primeirosBytes[0] -eq 0xEF -and $primeirosBytes[1] -eq 0xBB -and $primeirosBytes[2] -eq 0xBF) {
+        throw "o arquivo foi gravado com BOM; abortando antes de reiniciar o servico"
+    }
 
     Write-Host "==> reiniciando o servico" -ForegroundColor Cyan
-    Restart-Service $servico.Name
-    Start-Sleep -Seconds 3
+    if (-not (Reiniciar-Postgres $servico.Name $pastaDados)) {
+        throw "o servico nao subiu com a configuracao temporaria"
+    }
+    Start-Sleep -Seconds 2
 
     Write-Host "==> alterando a senha" -ForegroundColor Cyan
     $senhaEscapada = $NovaSenha -replace "'", "''"
@@ -106,12 +117,23 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "o comando ALTER USER falhou" }
 }
 finally {
-    # Sempre restaura a configuracao original, mesmo em caso de erro.
+    # Sempre restaura a configuracao original, mesmo em caso de erro. A copia de
+    # seguranca NAO e apagada: se algo der errado, ela e a rede de protecao.
     Write-Host "==> restaurando a configuracao original" -ForegroundColor Cyan
     Copy-Item $backupHba $hba -Force
-    Remove-Item $backupHba -Force
-    Restart-Service $servico.Name
-    Start-Sleep -Seconds 3
+
+    if (Reiniciar-Postgres $servico.Name $pastaDados) {
+        Write-Host "   servico no ar com a configuracao original" -ForegroundColor Green
+        Write-Host "   copia de seguranca mantida em: $backupHba"
+    } else {
+        Write-Host ""
+        Write-Host "IMPORTANTE: a configuracao original foi restaurada em:" -ForegroundColor Yellow
+        Write-Host "  $hba"
+        Write-Host "A copia de seguranca esta em:"
+        Write-Host "  $backupHba"
+        Write-Host "Tente iniciar manualmente:"
+        Write-Host "  Start-Service $($servico.Name)"
+    }
 }
 
 # ------------------------------------------------------------- verificacao

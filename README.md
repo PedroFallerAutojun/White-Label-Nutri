@@ -63,8 +63,27 @@ Se não estiver, redefina com o script (abra o PowerShell **como Administrador**
 
 Ele localiza a instalação pelo serviço do Windows, libera a autenticação local por
 alguns segundos, troca a senha e **restaura a configuração original** — inclusive se
-algo falhar no meio (a restauração está num bloco `finally`). No fim, testa a nova
-senha. Com mais de uma versão instalada, escolha qual com `-Versao 17`.
+algo falhar no meio (a restauração está num bloco `finally`). A cópia de segurança do
+`pg_hba.conf` é preservada. No fim, testa a nova senha. Com mais de uma versão
+instalada, escolha qual com `-Versao 17`.
+
+### O serviço do PostgreSQL não inicia
+
+```powershell
+Start-Service postgresql-x64-17
+# se falhar, o log diz o motivo exato:
+Get-ChildItem "$env:ProgramFiles\PostgreSQL\17\data\log" |
+    Sort-Object LastWriteTime -Descending | Select-Object -First 1 |
+    Get-Content -Tail 20
+```
+
+Duas causas comuns em `pg_hba.conf`:
+
+- **BOM no início do arquivo** → `FATAL: could not load pg_hba.conf`. Acontece ao
+  editar com ferramentas que gravam UTF-8 com BOM (inclusive
+  `Set-Content -Encoding UTF8` no PowerShell 5.1). Regrave sem BOM.
+- **arquivo corrompido ou vazio** → restaure a cópia de segurança
+  (`pg_hba.conf.antes-da-troca`, se existir) e inicie o serviço.
 
 ## Rodando com Docker (alternativa)
 
