@@ -1,4 +1,4 @@
-# Prepara o ambiente local com Docker no Windows (PowerShell).
+﻿# Prepara o ambiente local com Docker no Windows (PowerShell).
 #
 #   .\scripts\preparar_local.ps1                          # instância nova (vazia)
 #   .\scripts\preparar_local.ps1 backups\BackupNutriJR     # restaura o acervo legado
@@ -90,10 +90,9 @@ else {
     $chave  = if ($env:CHAVE_CADASTRO)        { $env:CHAVE_CADASTRO }        else { "CHAVE-LOCAL" }
 
     Write-Host "==> configurando a instância" -ForegroundColor Cyan
-    docker compose exec -T -e "INSTANCIA_ADMIN_SENHA=$senha" web `
-        python manage.py bootstrap_instancia --nome $nome --admin $admin --chave $chave
+    docker compose exec -T -e "INSTANCIA_ADMIN_SENHA=$senha" web python manage.py bootstrap_instancia --nome $nome --admin $admin --chave $chave
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "(instância já estava configurada — nada a fazer)" -ForegroundColor Yellow
+        Write-Host "(instância já estava configurada - nada a fazer)" -ForegroundColor Yellow
     }
 
     Write-Host ""
