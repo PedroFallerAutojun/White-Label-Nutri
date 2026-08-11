@@ -36,7 +36,7 @@ Executar UMA vez após restaurar, via comando de management `sanear_backup`:
 | S4 | Sinalizar fichas com `pesoAnvisa` e `pesoPorcao` nulos (ex.: 1273 — crasha no original, B15) | a view nova exibirá aviso em vez de 500 | n/a |
 | S5 | NÃO recalcular tabelas existentes | 45/50 divergem ao recalcular — os valores gravados são os rótulos emitidos (fonte de verdade histórica) | — |
 | S6 | (opcional) manter apenas a última linha de `fichas_chave` | higiene | sim |
-| S7 | Criar `Organizacao` nº 1 "Nutri Jr" (com `ano_corte_ingredientes=2024`, D-010) e vincular todos os Membros, Ingredientes e Fichas a ela; migrar a chave de cadastro para a organização | D-009 — multi-tenant | sim |
+| S7 | Criar `ConfiguracaoInstancia` da instância Nutri Jr (`nome_exibicao="Nutri Jr"`, `ano_corte_ingredientes=2024`, D-010) | D-009 — instância por empresa | sim |
 
 Log de execução gravado em tabela própria (`saneamento_log`) com timestamp e diff por ação.
 

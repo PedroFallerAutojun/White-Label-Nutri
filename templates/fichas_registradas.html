@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block titulo %}Fichas — {{ instancia_nome }}{% endblock %}
+{% block conteudo %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h3 mb-0">Fichas registradas</h1>
+</div>
+<form method="post" class="row g-2 mb-4">
+  {% csrf_token %}
+  <div class="col-12 col-md-4"><input class="form-control" type="text" name="f_nomeFicha" placeholder="Receita" value="{{ formFiltro.f_nomeFicha.value|default:'' }}"></div>
+  <div class="col-12 col-md-3"><input class="form-control" type="text" name="f_cliente" placeholder="Cliente" value="{{ formFiltro.f_cliente.value|default:'' }}"></div>
+  <div class="col-12 col-md-3"><input class="form-control" type="text" name="f_autor" placeholder="Autor" value="{{ formFiltro.f_autor.value|default:'' }}"></div>
+  <div class="col-12 col-md-2"><button class="btn btn-outline-secondary w-100" type="submit">Filtrar</button></div>
+</form>
+<div class="table-responsive">
+  <table class="table table-striped table-hover align-middle bg-white">
+    <thead><tr><th>Receita</th><th>Cliente</th><th>Autor</th><th>Data</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for ficha in fichas %}
+      <tr>
+        <td>{{ ficha.nomeFicha }}</td>
+        <td>{{ ficha.cliente }}</td>
+        <td>{{ ficha.autor.nome }}</td>
+        <td>{{ ficha.dataCriacao|date:"d/m/Y" }}</td>
+        <td>{% if ficha.finalizada %}<span class="badge text-bg-success">Finalizada</span>{% else %}<span class="badge text-bg-secondary">Em edição</span>{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="text-center text-muted py-4">Nenhuma ficha encontrada.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
