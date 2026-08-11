@@ -7,10 +7,10 @@ Nada daqui deve ser implementado automaticamente. Prioridade do projeto:
 
 | # | Problema | Evidência | Efeito |
 |---|----------|-----------|--------|
-| B1 | `request.is_ajax()` (removido no Django 4.0) em mudaChave/trocaSenha/deletaMembro | views.py:1064/1085/1111 + Django 4.2.11 | Administração de membros deve estar quebrada (500) [validar] |
-| B2 | `tabela.Biotina_Arred` (B maiúsculo) | views.py montarTabelaFinal | Exibir biotina → 500 |
+| B1 | `request.is_ajax()` (removido no Django 4.0) em mudaChave/trocaSenha/deletaMembro | views.py:1064/1085/1111 + Django 4.2.11 | **CONFIRMADO em runtime** (AttributeError): administração de membros quebrada (500) |
+| B2 | `tabela.Biotina_Arred` (B maiúsculo) | views.py montarTabelaFinal | **CONFIRMADO em runtime**: exibir biotina → 500 |
 | B3 | Linha Manganês usa `magnesio_100g` na coluna 100 g | views.py montarTabelaFinal | Valor errado no rótulo |
-| B4 | 16 fichas sem Tabela no banco | backup (IDs 1138–1151, 2733, 2734) | Abrir essas fichas → 500 |
+| B4 | 16 fichas sem Tabela no banco | backup (IDs 1138–1151, 2733, 2734) | **CONFIRMADO em runtime** (DoesNotExist): abrir essas fichas → 500 |
 | B5 | `ing.save` sem parênteses em registrarIngrediente | views.py:1293 | Funciona por acidente (att100g salva) |
 | B6 | Condição de zerar gordTotais usa `gordPoli` (total) na checagem por porção | views.py:390 | Assimetria porção × 100 g |
 | B7 | `truncar` quebra com int/None | templatetags | 500 em casos raros |
@@ -21,6 +21,7 @@ Nada daqui deve ser implementado automaticamente. Prioridade do projeto:
 | B12 | salvarReceita não recalcula a tabela | views.py:594 | Tabela desatualizada até o próximo recálculo |
 | B13 | Editar ingrediente não recalcula fichas que o usam | views.py:1302 | Fichas antigas ficam defasadas (pode ser intencional — congelar fichas emitidas?) [VALIDAR] |
 | B14 | Reset de senha (auth.urls) sem backend de e-mail | settings | Link "esqueci a senha" não funciona |
+| B15 | `int(pesoAnvisa or pesoPorcao)` com ambos NULL crasha fichaX | views.py (pesoAnvisaSemZero); ficha 1273 no backup | **CONFIRMADO em runtime** (TypeError) → 500 |
 
 ## Dívidas estruturais
 - 335 colunas em `fichas_tabela` / ~100 em `fichas_ingrediente` → normalizar para
