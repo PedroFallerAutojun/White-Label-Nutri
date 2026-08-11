@@ -22,17 +22,28 @@ git checkout claude/nutri-jr-reverse-engineering-kglfb4
 **Instância nova, vazia** (cria administrador e chave de cadastro):
 
 ```bash
-./scripts/preparar_local.sh
+./scripts/preparar_local.sh          # Linux / macOS
+.\scripts\preparar_local.ps1         # Windows (PowerShell)
 ```
 
 **Com o acervo da Nutri Jr**, a partir de uma cópia do backup — o arquivo está
 versionado no repositório do sistema original:
 
+Linux / macOS:
 ```bash
 git clone https://github.com/PedroFallerAutojun/Nutri_Jr.git ../Nutri_Jr
 cp ../Nutri_Jr/BackupNutriJR backups/
 ./scripts/preparar_local.sh backups/BackupNutriJR
 ```
+
+Windows (PowerShell):
+```powershell
+git clone https://github.com/PedroFallerAutojun/Nutri_Jr.git ..\Nutri_Jr
+Copy-Item ..\Nutri_Jr\BackupNutriJR backups\
+.\scripts\preparar_local.ps1 backups\BackupNutriJR
+```
+Se o PowerShell recusar a execução do script, libere para a sessão atual com
+`Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`.
 
 Depois: <http://localhost:8000>. A primeira execução baixa as imagens e instala as
 dependências (alguns minutos); as seguintes são rápidas.
