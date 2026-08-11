@@ -21,8 +21,9 @@
 White-Label-Nutri/
 ├── config/                    # settings (base/dev/prod via env), urls, wsgi
 ├── apps/
-│   ├── contas/                # Membro, chave de cadastro, papéis (admin de verdade)
-│   ├── ingredientes/          # Ingrediente + upload TACO
+│   ├── organizacoes/          # Organizacao (tenant), branding, configurações por empresa
+│   ├── contas/                # Membro, chave de cadastro POR organização, papéis
+│   ├── ingredientes/          # Ingrediente + upload TACO (escopados por organização)
 │   ├── fichas/                # Ficha, Ficha_Ingrediente (wizard)
 │   └── rotulagem/             # Tabela, Nutriente extra, cálculo, rótulo, lupas
 ├── apps/rotulagem/dominio/    # NÚCLEO PURO (sem Django):
@@ -95,7 +96,32 @@ e-mail — decidir), B15 (ficha sem pesos não crasha: exibe aviso), B6/B8/B9 ve
 Proposta: corrigir apenas para **fichas novas/recalculadas** (flag por versão de cálculo),
 nunca em massa — coerente com a validação de runtime (45/50 fichas divergem ao recalcular).
 
-### 3.6 UI/UX (Etapa J — depois da paridade)
+### 3.6 Multi-tenancy (white-label — D-009)
+O produto será vendido a várias empresas. Modelo escolhido: **banco único, schema
+compartilhado, FK de tenant** (simples de operar, migra bem do banco legado, suficiente
+para o porte; schema-per-tenant fica como evolução futura se um cliente exigir isolamento
+físico).
+
+- `Organizacao`: nome, slug, logotipo, cor primária, ativa, `ano_corte_ingredientes`
+  (D-010), criada em.
+- FK `organizacao` (indexada) em: `Membro`, `Ingrediente`, `Ficha`. `Tabela`,
+  `Ficha_Ingrediente` e `Nutriente` herdam o tenant via ficha — sem coluna própria.
+- **Isolamento**: managers escopados (`objects.da_organizacao(org)`) + middleware que
+  resolve a organização do usuário logado; NENHUMA view consulta modelo de domínio sem
+  escopo (regra de revisão + teste automatizado de vazamento entre tenants).
+- **Papéis por organização**: dono / administrador / membro (substitui `username=='admin'`).
+  Superadmin de plataforma (staff) administra organizações no Django admin.
+- **Chave de cadastro** (BR-024): passa a ser por organização — o link/chave identifica
+  em qual empresa o novo membro entra. Comportamento do tenant Nutri Jr preservado.
+- **Branding**: aplicado ao layout (logo, cores, nome no header). O rótulo ANVISA não
+  muda entre tenants (D-011).
+- **Compatibilidade com o backup**: as colunas de tenant são **aditivas** com default =
+  organização 1 ("Nutri Jr"), criada no saneamento (MIGRATION.md S7). IDs e schema legado
+  preservados; o teste de paridade golden roda no tenant 1 sem alteração.
+- Fora de escopo por ora (FUTURE_IMPROVEMENTS): billing/planos, subdomínio por tenant,
+  cadastro self-service de empresas.
+
+### 3.7 UI/UX (Etapa J — depois da paridade)
 Wizard com passos visíveis e validação inline; listas com paginação, busca com debounce
 (htmx) e ordenação; autocomplete real no lugar do datalist por nome exato; toggles da
 tabela sem reload; confirmações em modal; estados vazios e de carregamento; responsivo;
@@ -104,13 +130,16 @@ Docs" pixel-compatível (Clipboard API com fallback).
 
 ## 4. Fases de implementação (Etapa E em diante)
 
-1. **E1 — Fundação:** projeto config/, models compatíveis, `--fake-initial`, auth, base UI.
+1. **E1 — Fundação:** projeto config/, models compatíveis + `Organizacao` (FK aditiva,
+   default tenant 1), `--fake-initial`, auth, papéis por organização, base UI com branding.
 2. **E2 — Domínio puro:** nutrientes.py + calculo.py + rotulo.py com testes unitários
    BR-001..BR-030 e paridade attTabela.
-3. **E3 — Fichas/wizard + ingredientes + upload TACO.**
-4. **E4 — Rótulo final (fichaX)** validado contra o golden dataset (1.557 fichas).
-5. **E5 — Membros/administração** (sem is_ajax, com permissões).
-6. **E6 — Saneamento/importação** (MIGRATION.md) + testes de migração.
+3. **E3 — Fichas/wizard + ingredientes + upload TACO** (escopados por organização).
+4. **E4 — Rótulo final (fichaX)** validado contra o golden dataset (1.557 fichas, tenant 1).
+5. **E5 — Membros/administração por organização** (sem is_ajax; chave por tenant) +
+   administração de organizações (superadmin).
+6. **E6 — Saneamento/importação** (MIGRATION.md, incl. S7: criar tenant "Nutri Jr" e
+   vincular todo o acervo) + testes de migração e de isolamento entre tenants.
 7. **E7 — UX final, performance (selects anotados, transações), segurança.**
 
 Critério de saída de cada fase: testes verdes + paridade golden sem regressão.

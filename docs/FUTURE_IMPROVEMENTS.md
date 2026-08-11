@@ -37,7 +37,9 @@ Nada daqui deve ser implementado automaticamente. Prioridade do projeto:
 ## Ideias de produto (NÃO implementar sem aprovação)
 - Exportar PDF/PNG do rótulo em vez de copiar HTML.
 - Duplicar ficha; histórico/versões de ficha; busca global.
-- Multi-tenant/white-label (o nome do repo novo sugere isso — [PRECISA SER VALIDADO]
-  com o usuário: o novo produto é para várias empresas/marcas?).
+- ~~Multi-tenant/white-label~~ → **movido para o escopo do produto** (D-009). Ficam como
+  evolução futura: billing/planos por empresa, subdomínio por tenant, cadastro
+  self-service de organizações, isolamento físico (schema-per-tenant) para clientes
+  que exigirem.
 - Recalcular fichas em lote quando um ingrediente muda (com opção de congelar finalizadas).
 - Suporte a alimentos líquidos nas lupas (limiares diferentes na RDC 429/2020).
