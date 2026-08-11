@@ -170,7 +170,9 @@ try {
 
     Write-Host "==> alterando a senha" -ForegroundColor Cyan
     $senhaEscapada = $NovaSenha -replace "'", "''"
-    & $psql -U $Usuario -d postgres -c "ALTER USER $Usuario PASSWORD '$senhaEscapada'"
+    # -w mesmo em modo trust: se a liberacao nao tiver surtido efeito, falha na hora
+    # em vez de travar esperando uma senha (e o finally restaura a configuracao).
+    & $psql -w -U $Usuario -h 127.0.0.1 -d postgres -c "ALTER USER $Usuario PASSWORD '$senhaEscapada'"
     if ($LASTEXITCODE -ne 0) { throw "o comando ALTER USER falhou" }
 }
 finally {
@@ -197,7 +199,7 @@ finally {
 
 Write-Host "==> testando a nova senha" -ForegroundColor Cyan
 $env:PGPASSWORD = $NovaSenha
-& $psql -U $Usuario -h 127.0.0.1 -d postgres -c "SELECT version();" *> $null
+& $psql -w -U $Usuario -h 127.0.0.1 -d postgres -c "SELECT version();" *> $null
 $ok = ($LASTEXITCODE -eq 0)
 # Remove-Item em vez de = $null: a variavel nao deve sobrar na sessao, senao
 # outros scripts a herdam e tentam autenticar com ela.

@@ -96,6 +96,23 @@ def validar(caminho: Path) -> list[str]:
                     "caminho; no Windows o bin nao esta no PATH por padrao "
                     "(use & $psql ou ajuste $env:Path)"
                 )
+
+    # Clientes do PostgreSQL sem -w abrem prompt interativo de senha. Em script
+    # com saida redirecionada isso vira travamento silencioso.
+    conectam = r"(psql|pg_restore|pg_dump|createdb|dropdb)"
+    for numero, linha in enumerate(texto.splitlines(), 1):
+        codigo_linha = sem_comentarios_nem_strings(linha)
+        if "docker" in codigo_linha or "--version" in codigo_linha:
+            continue
+        if not re.search(rf"[&$]\s*\$?\w*\b{conectam}\b", codigo_linha):
+            continue
+        if not re.search(r"\s-U\b|\s-d\b|\s-c\b", codigo_linha):
+            continue  # nao esta conectando
+        if not re.search(r"\s-w\b", codigo_linha):
+            problemas.append(
+                f"linha {numero}: cliente do PostgreSQL sem -w; sem essa flag ele "
+                "abre prompt de senha e o script trava em silencio"
+            )
     return problemas
 
 

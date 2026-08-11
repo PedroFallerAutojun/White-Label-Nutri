@@ -50,7 +50,9 @@ function Achar-Pasta-Postgres {
 function Testar-Conexao($usuario, $porta) {
     # -h 127.0.0.1 explicito: sem isso o libpq tenta "localhost", que pode
     # resolver para ::1 e cair em outra regra do pg_hba.conf.
-    & psql -U $usuario -h 127.0.0.1 -p $porta -d postgres -c "SELECT 1" *> $null
+    # -w impede o prompt interativo: a saida esta redirecionada, e sem isso o
+    # script ficaria travado esperando uma senha que o usuario nao ve sendo pedida.
+    & psql -w -U $usuario -h 127.0.0.1 -p $porta -d postgres -c "SELECT 1" *> $null
     return ($LASTEXITCODE -eq 0)
 }
 
@@ -149,6 +151,10 @@ while (-not $env:PGPASSWORD -or -not (Testar-Conexao $UsuarioDb $Porta)) {
         exit 1
     }
     $env:PGPASSWORD = Pedir-Senha $UsuarioDb
+    if (-not $env:PGPASSWORD) {
+        Write-Host "   senha vazia." -ForegroundColor Yellow
+        continue
+    }
     if (Testar-Conexao $UsuarioDb $Porta) { break }
     Write-Host "   senha incorreta." -ForegroundColor Yellow
 }
@@ -162,8 +168,8 @@ $env:DJANGO_SETTINGS_MODULE = "config.settings.dev"
 
 if ($Backup) {
     Write-Host "==> recriando o banco '$Banco'" -ForegroundColor Cyan
-    & dropdb -U $UsuarioDb -h 127.0.0.1 -p $Porta --if-exists --force $Banco
-    & createdb -U $UsuarioDb -h 127.0.0.1 -p $Porta $Banco
+    & dropdb -w -U $UsuarioDb -h 127.0.0.1 -p $Porta --if-exists --force $Banco
+    & createdb -w -U $UsuarioDb -h 127.0.0.1 -p $Porta $Banco
     if ($LASTEXITCODE -ne 0) {
         Write-Host ""
         Write-Host "Nao foi possivel criar o banco." -ForegroundColor Red
@@ -174,10 +180,25 @@ if ($Backup) {
     }
 
     Write-Host "==> restaurando o backup (o arquivo original nao e alterado)" -ForegroundColor Cyan
-    # pg_restore relata avisos benignos de propriedade/permissao; o -e nao e usado
-    # de proposito para que a restauracao continue apesar deles.
-    & pg_restore --no-owner --no-privileges -U $UsuarioDb -h 127.0.0.1 -p $Porta -d $Banco $Backup
-    Write-Host "   (avisos de owner/ACL acima sao esperados e inofensivos)"
+    # O -e (--exit-on-error) nao e usado de proposito: o dump traz objetos que nao
+    # se aplicam a uma instalacao local (extensao pg_stat_statements, comentario do
+    # schema public, propriedades do banco do Heroku). Esses erros sao inofensivos,
+    # e as tabelas e os dados sao restaurados normalmente.
+    & pg_restore -w --no-owner --no-privileges -U $UsuarioDb -h 127.0.0.1 -p $Porta -d $Banco $Backup
+    Write-Host "   (mensagens sobre extensao/comentario/propriedades acima sao esperadas)"
+
+    # Em vez de confiar nos avisos, confere se os dados chegaram de fato.
+    Write-Host "==> verificando o conteudo restaurado" -ForegroundColor Cyan
+    $fichas = (& psql -w -At -U $UsuarioDb -h 127.0.0.1 -p $Porta -d $Banco `
+        -c "SELECT count(*) FROM fichas_ficha").Trim()
+    $ingredientes = (& psql -w -At -U $UsuarioDb -h 127.0.0.1 -p $Porta -d $Banco `
+        -c "SELECT count(*) FROM fichas_ingrediente").Trim()
+    if (-not $fichas -or [int]$fichas -eq 0) {
+        Write-Host "A restauracao nao trouxe fichas." -ForegroundColor Red
+        Write-Host "Verifique as mensagens do pg_restore acima (o cliente precisa ser 17+)."
+        throw "restauracao sem dados"
+    }
+    Write-Host "   $fichas fichas e $ingredientes ingredientes no banco" -ForegroundColor Green
 
     Write-Host "==> reconhecendo o schema legado" -ForegroundColor Cyan
     & $py manage.py migrate --fake-initial --noinput
@@ -192,7 +213,7 @@ if ($Backup) {
     Write-Host "Os usuarios sao os reais do backup. Para criar um acesso local:"
     Write-Host "  .\.venv\Scripts\python.exe manage.py createsuperuser"
 } else {
-    & createdb -U $UsuarioDb -h 127.0.0.1 -p $Porta $Banco 2>$null
+    & createdb -w -U $UsuarioDb -h 127.0.0.1 -p $Porta $Banco 2>$null
     Write-Host "==> aplicando as migrations" -ForegroundColor Cyan
     & $py manage.py migrate --noinput
 

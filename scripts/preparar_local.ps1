@@ -65,6 +65,14 @@ if ($Backup) {
         docker compose exec -T db pg_restore --no-owner --no-privileges -U $usuarioDb -d $banco $arquivo
     }
 
+    # Confere se os dados chegaram, em vez de confiar nos avisos do pg_restore.
+    Write-Host "==> verificando o conteudo restaurado" -ForegroundColor Cyan
+    $fichas = (docker compose exec -T db psql -w -At -U $usuarioDb -d $banco -c "SELECT count(*) FROM fichas_ficha").Trim()
+    if (-not $fichas -or [int]$fichas -eq 0) {
+        throw "a restauracao nao trouxe fichas; veja as mensagens do pg_restore acima"
+    }
+    Write-Host "   $fichas fichas no banco" -ForegroundColor Green
+
     # O entrypoint do web aplica migrate --fake-initial, reconhecendo o schema legado.
     Invocar "subindo a aplicacao" { docker compose up -d --build web }
 
