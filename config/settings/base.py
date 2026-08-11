@@ -70,7 +70,10 @@ DATABASES["default"]["CONN_MAX_AGE"] = env.int("CONN_MAX_AGE", default=60)
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
-    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+    {
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+        "OPTIONS": {"min_length": 10},
+    },
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
@@ -90,6 +93,12 @@ STORAGES = {
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
+# O upload de ingredientes é um TXT pequeno; o limite evita consumo de memória
+# e uploads acidentais de arquivos grandes (BR-023).
+DATA_UPLOAD_MAX_MEMORY_SIZE = env.int("DATA_UPLOAD_MAX_MEMORY_SIZE", default=5 * 1024 * 1024)
+FILE_UPLOAD_MAX_MEMORY_SIZE = DATA_UPLOAD_MAX_MEMORY_SIZE
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 2000  # o formulário de ingrediente tem ~55 campos
 
 # O banco legado usa PKs integer (AutoField) — não mudar (D-003/D-012).
 DEFAULT_AUTO_FIELD = "django.db.models.AutoField"

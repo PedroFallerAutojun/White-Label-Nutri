@@ -85,9 +85,25 @@ Sem a variável o teste é pulado, então a suíte continua verde em ambientes s
 - S1: as 16 fichas órfãs abrem sem erro após saneamento.
 - Restauração ponta a ponta em CI com PostgreSQL 17 (quando disponível).
 
+## 4b. Testes de segurança (D-013/D-014)
+`tests/integration/test_seguranca.py`: rotas e mutações exigem autenticação, CSRF bloqueia
+POST sem token, senha fraca é recusada no cadastro, o fluxo de reset por e-mail não está
+exposto e a configuração de produção mantém as garantias (HTTPS, cookies, HSTS, HSTS ≥ 1 h,
+X-Frame-Options, obrigatoriedade de SECRET_KEY/ALLOWED_HOSTS).
+
+## 4c. Integração contínua
+`.github/workflows/testes.yml` roda, a cada push: `manage.py check`,
+`makemigrations --check` (detecta drift de modelo) e a suíte completa com PostgreSQL 16.
+O teste de paridade e2e é pulado no CI (depende do dump); rode-o localmente antes de
+publicar mudanças no cálculo ou no rótulo.
+
 ## 5. Regressão visual/cópia (Etapa J)
 - Snapshot do HTML do bloco copiável do rótulo (estrutura, não estilo).
 - Teste manual roteirizado: colar no Google Docs e comparar com um rótulo emitido real.
+- **Verificado em navegador real (Chromium, 2026-08-11):** o botão "Copiar conteúdo"
+  entrega 83 KB de `text/html` à área de transferência, contendo as duas tabelas, a lista
+  de ingredientes, os alérgicos e a lupa como imagem embutida; zero erros de console nas
+  telas principais em 1440 px e 390 px.
 
 ## 6. Como regenerar o golden
 Script `scripts/gera_golden.py` (porta do usado na Etapa C): restaurar cópia do backup,

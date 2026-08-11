@@ -1,5 +1,10 @@
 # Inventário de Funcionalidades — Nutri Jr
 
+> **Status da reimplementação (2026-08-11): as 33 funcionalidades estão implementadas no
+> White-Label-Nutri.** Equivalência verificada em docs/PARITY_MATRIX.md.
+> F-06/F-07/F-08 estavam **quebradas na produção original** (B1) e voltaram a funcionar.
+> F-31 (Django admin) e F-32 (URLs de auth) mudaram por decisão: ver notas ao final.
+
 Colunas: Tela/URL de acesso; Permissão (L = logado, P = público, A = admin por username);
 BD (R = leitura, C = cria, U = atualiza, D = deleta); Regras (ver BUSINESS_RULES.md).
 
@@ -44,3 +49,16 @@ autenticação e método adequado (decisão de segurança, não muda o comportam
 para usuários legítimos).
 
 `*` = a UI só é exibida ao admin, mas o endpoint não valida ser admin.
+
+## Notas sobre a nova versão
+
+- **F-06/F-07/F-08** (administração de membros): reimplementadas por POST comum, com
+  exigência do papel de administrador. No original estavam quebradas (`request.is_ajax()`
+  removido no Django 4) e sem verificação de permissão.
+- **F-19/F-23** e demais mutações: exigem login e POST (antes eram GET públicos).
+- **F-31** (Django admin): mantido, restrito a superusuários; passou a incluir a
+  Configuração da instância (branding e ano de corte).
+- **F-32** (URLs de auth do Django): **não** foram expostas. O reset por e-mail nunca
+  funcionou (sem backend de e-mail, B14); a tela de login orienta a pedir a redefinição a
+  um administrador, que a faz na tela de Membros. Decisão registrada como D-014.
+- **F-33** (mensagens): preservadas, com os mesmos textos onde eram regra de negócio.

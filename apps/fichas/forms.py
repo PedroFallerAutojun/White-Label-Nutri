@@ -197,6 +197,12 @@ class MembroForm(forms.ModelForm):
             self.add_error(
                 "senha2", "As senhas não conferem. Não foi possível realizar o cadastro."
             )
+        elif dados.get("senha1"):
+            # Força mínima de senha (D-013) — o original aceitava qualquer senha.
+            try:
+                validate_password(dados["senha1"])
+            except forms.ValidationError as erro:
+                self.add_error("senha1", erro)
         chave_atual = Chave.objects.last()
         if not chave_atual or dados.get("chave") != chave_atual.key:
             self.add_error("chave", "Chave incorreta. Não foi possível realizar o cadastro.")

@@ -44,9 +44,15 @@ Etapas concluídas: E1 (fundação), E2 (cálculo e rótulo com paridade validad
 E3/E4 (telas do wizard, ingredientes, upload e rótulo final), E5 (membros e
 administração), E6 (saneamento e provisionamento de instâncias).
 
+E7 (segurança, performance e documentação de paridade) concluída.
+
 Paridade com o sistema original: **1.557/1.557 rótulos idênticos**; após o
 saneamento, **as 1.574 fichas do acervo abrem sem erro** (17 davam 500 no original).
-Suíte: 99 testes.
+Suíte: **117 testes**. Detalhes em `docs/PARITY_MATRIX.md`.
+
+## Configuração
+As variáveis de ambiente estão documentadas em `.env.example`. Em produção,
+`SECRET_KEY` e `ALLOWED_HOSTS` são obrigatórias — a aplicação falha no boot sem elas.
 
 ## Documentação
 - `docs/REVERSE_ENGINEERING.md` — engenharia reversa do sistema original
@@ -54,4 +60,5 @@ Suíte: 99 testes.
 - `docs/NEW_ARCHITECTURE.md` — arquitetura da nova versão e fases E1–E7
 - `docs/MIGRATION.md` — restauração do backup e saneamento
 - `docs/TESTING.md` — estratégia de paridade (golden dataset em `tests/golden/`)
+- `docs/PARITY_MATRIX.md` — matriz de paridade Original × Novo
 - `docs/DECISIONS.md` — registro de decisões
