@@ -329,11 +329,11 @@ def test_corte_por_ano_e_configuracao_da_instancia(logado, membro):
         autorIng=membro, nomeIng="Antigo 2019", origemDosDados="TACO",
         dataCriacao="2019-09-26", qtdeDoIngrediente=100,
     )
-    corpo = logado.post("/listaIngredientes", {}).content.decode()
+    corpo = logado.get("/listaIngredientes").content.decode()
     assert "Antigo 2019" in corpo
 
     ConfiguracaoInstancia.objects.create(nome_exibicao="Nutri Jr", ano_corte_ingredientes=2024)
-    corpo = logado.post("/listaIngredientes", {}).content.decode()
+    corpo = logado.get("/listaIngredientes").content.decode()
     assert "Antigo 2019" not in corpo
 
 
@@ -377,3 +377,36 @@ def test_mutacoes_recusam_get(logado, ficha, template):
 
 def test_ficha_inexistente_devolve_404(logado):
     assert logado.get("/fichaX/999999").status_code == 404
+
+
+# ------------------------------------------------------------------ paginação
+
+
+def test_lista_de_fichas_pagina_resultados(logado, membro):
+    """A lista não renderiza o acervo inteiro de uma vez (25 por página)."""
+    from apps.fichas.views import ITENS_POR_PAGINA
+
+    for i in range(ITENS_POR_PAGINA + 5):
+        Ficha.objects.create(
+            autor=membro, cliente="C", nomeFicha=f"Ficha {i:03d}", dataCriacao="2025-01-01"
+        )
+    primeira = logado.get("/listaFichas")
+    assert len(primeira.context["fichas"].object_list) == ITENS_POR_PAGINA
+    assert primeira.context["pagina"].has_next()
+
+    segunda = logado.get("/listaFichas", {"pagina": 2})
+    assert len(segunda.context["fichas"].object_list) == 5
+
+
+def test_paginacao_preserva_filtros(logado, membro):
+    for i in range(30):
+        Ficha.objects.create(
+            autor=membro, cliente="Padaria", nomeFicha=f"Pão {i:03d}", dataCriacao="2025-01-01"
+        )
+    Ficha.objects.create(
+        autor=membro, cliente="Outro", nomeFicha="Bolo", dataCriacao="2025-01-01"
+    )
+    resp = logado.get("/listaFichas", {"f_nomeFicha": "Pão", "pagina": 2})
+    assert resp.context["total"] == 30
+    assert all("Pão" in f.nomeFicha for f in resp.context["fichas"].object_list)
+    assert "f_nomeFicha=P%C3%A3o" in resp.context["filtrosQuery"]

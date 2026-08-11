@@ -9,8 +9,7 @@
   </div>
 </div>
 
-<form method="post" class="row g-2 mb-4">
-  {% csrf_token %}
+<form method="get" class="row g-2 mb-4">
   <div class="col-12 col-md-4">
     <label class="visually-hidden" for="f_nomeIng">Nome</label>
     <input class="form-control" type="text" name="f_nomeIng" id="f_nomeIng"
@@ -76,4 +75,6 @@
     </tbody>
   </table>
 </div>
+
+{% include "_paginacao.html" %}
 {% endblock %}

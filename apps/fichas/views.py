@@ -16,6 +16,7 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import Group, User
+from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Q
 from django.db.models.functions import Lower
@@ -73,21 +74,44 @@ def logout_user(request):
     return redirect("loginUser")
 
 
+ITENS_POR_PAGINA = 25
+
+
+def _paginar(request, queryset):
+    """Pagina uma listagem preservando os filtros na querystring."""
+    paginador = Paginator(queryset, ITENS_POR_PAGINA)
+    pagina = paginador.get_page(request.GET.get("pagina"))
+    parametros = request.GET.copy()
+    parametros.pop("pagina", None)
+    return pagina, parametros.urlencode()
+
+
 # ---------------------------------------------------------------------- fichas
 
 
 @login_required
 def lista_fichas(request):
-    fichas = Ficha.objects.select_related("autor").order_by("-dataCriacao")
-    form_filtro = FichaFiltroForm(request.POST or None)
+    """BR-028 — filtros por 'contains' combinados, mais recentes primeiro.
+    Filtros migraram de POST para GET (decisão de UI): ficam na URL e permitem paginar."""
+    fichas = Ficha.objects.select_related("autor").order_by("-dataCriacao", "-id")
+    form_filtro = FichaFiltroForm(request.GET or None)
     if form_filtro.is_valid():
         fichas = fichas.filter(
             Q(nomeFicha__contains=form_filtro.cleaned_data["f_nomeFicha"])
             & Q(cliente__contains=form_filtro.cleaned_data["f_cliente"])
             & Q(autor__nome__contains=form_filtro.cleaned_data["f_autor"])
         )
+    pagina, filtros = _paginar(request, fichas)
     return render(
-        request, "fichas_registradas.html", {"fichas": fichas, "formFiltro": form_filtro}
+        request,
+        "fichas_registradas.html",
+        {
+            "fichas": pagina,
+            "pagina": pagina,
+            "filtrosQuery": filtros,
+            "total": fichas.count(),
+            "formFiltro": form_filtro,
+        },
     )
 
 
@@ -457,7 +481,7 @@ def _ingredientes_disponiveis():
 @login_required
 def lista_ingredientes(request):
     ingredientes = _ingredientes_disponiveis().select_related("autorIng")
-    form_filtro = IngredienteFiltroForm(request.POST or None)
+    form_filtro = IngredienteFiltroForm(request.GET or None)
     if form_filtro.is_valid():
         # B11 corrigido: o filtro respeita o mesmo recorte da listagem
         ingredientes = ingredientes.filter(
@@ -465,10 +489,17 @@ def lista_ingredientes(request):
             & Q(origemDosDados__icontains=form_filtro.cleaned_data["f_origemDosDados"])
             & Q(autorIng__nome__icontains=form_filtro.cleaned_data["f_autorIng"])
         )
+    pagina, filtros = _paginar(request, ingredientes)
     return render(
         request,
         "ingredientes_registrados.html",
-        {"ingredientes": ingredientes, "formFiltro": form_filtro},
+        {
+            "ingredientes": pagina,
+            "pagina": pagina,
+            "filtrosQuery": filtros,
+            "total": ingredientes.count(),
+            "formFiltro": form_filtro,
+        },
     )
 
 

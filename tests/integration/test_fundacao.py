@@ -43,7 +43,7 @@ def test_filtro_por_contains(client, membro):
     Ficha.objects.create(autor=membro, cliente="Padaria", nomeFicha="Pão vegano", dataCriacao="2025-01-01")
     Ficha.objects.create(autor=membro, cliente="Outra", nomeFicha="Bolo", dataCriacao="2025-01-02")
     client.force_login(membro.usuario)
-    corpo = client.post("/listaFichas", {"f_nomeFicha": "Pão", "f_cliente": "", "f_autor": ""}).content.decode()
+    corpo = client.get("/listaFichas", {"f_nomeFicha": "Pão", "f_cliente": "", "f_autor": ""}).content.decode()
     assert "Pão vegano" in corpo and "Bolo" not in corpo
 
 

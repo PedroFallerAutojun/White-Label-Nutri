@@ -6,8 +6,7 @@
   <a class="btn btn-primario-instancia" href="{% url 'registrarFicha1' %}">Nova ficha</a>
 </div>
 
-<form method="post" class="row g-2 mb-4">
-  {% csrf_token %}
+<form method="get" class="row g-2 mb-4">
   <div class="col-12 col-md-4">
     <label class="visually-hidden" for="f_nomeFicha">Receita</label>
     <input class="form-control" type="text" name="f_nomeFicha" id="f_nomeFicha"
@@ -68,4 +67,6 @@
     </tbody>
   </table>
 </div>
+
+{% include "_paginacao.html" %}
 {% endblock %}
