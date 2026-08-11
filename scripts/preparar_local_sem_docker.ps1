@@ -1,0 +1,163 @@
+﻿# Prepara o ambiente local no Windows SEM Docker (PowerShell).
+#
+#   .\scripts\preparar_local_sem_docker.ps1                        # instancia nova
+#   .\scripts\preparar_local_sem_docker.ps1 backups\BackupNutriJR  # com o acervo
+#
+# Requisitos: Python 3.12+ e PostgreSQL 17+ instalados.
+# O script verifica os dois e explica como instalar o que faltar.
+
+param(
+    [string]$Backup = "",
+    [string]$Banco = "nutri",
+    [string]$UsuarioDb = "postgres"
+)
+
+$ErrorActionPreference = "Stop"
+Set-Location (Join-Path $PSScriptRoot "..")
+
+function Achar-Python {
+    foreach ($candidato in @("py", "python", "python3")) {
+        $caminho = Get-Command $candidato -ErrorAction SilentlyContinue
+        if (-not $caminho) { continue }
+        $versao = & $candidato -c "import sys; print('%d.%d' % sys.version_info[:2])" 2>$null
+        if ($LASTEXITCODE -eq 0 -and [version]$versao -ge [version]"3.12") {
+            return $candidato
+        }
+    }
+    return $null
+}
+
+function Achar-Pasta-Postgres {
+    # Primeiro no PATH; depois nas pastas padrao de instalacao do Windows.
+    if (Get-Command pg_restore -ErrorAction SilentlyContinue) { return "" }
+    $bases = @("$env:ProgramFiles\PostgreSQL", "${env:ProgramFiles(x86)}\PostgreSQL")
+    foreach ($base in $bases) {
+        if (-not (Test-Path $base)) { continue }
+        $versoes = Get-ChildItem $base -Directory |
+            Where-Object { $_.Name -match '^\d+$' } |
+            Sort-Object { [int]$_.Name } -Descending
+        foreach ($versao in $versoes) {
+            $bin = Join-Path $versao.FullName "bin"
+            if (Test-Path (Join-Path $bin "pg_restore.exe")) { return $bin }
+        }
+    }
+    return $null
+}
+
+# ---------------------------------------------------------------- requisitos
+
+$python = Achar-Python
+if (-not $python) {
+    Write-Host "Falta o Python 3.12 ou superior." -ForegroundColor Red
+    Write-Host "Instale com:  winget install Python.Python.3.12"
+    Write-Host "ou baixe em:  https://www.python.org/downloads/windows/"
+    Write-Host "Feche e reabra o terminal depois de instalar."
+    exit 1
+}
+Write-Host "Python encontrado: $python" -ForegroundColor Green
+
+$pastaPg = Achar-Pasta-Postgres
+if ($null -eq $pastaPg) {
+    Write-Host "Falta o PostgreSQL (versao 17 ou superior)." -ForegroundColor Red
+    Write-Host "Instale com:  winget install PostgreSQL.PostgreSQL.17"
+    Write-Host "ou baixe em:  https://www.postgresql.org/download/windows/"
+    Write-Host ""
+    Write-Host "Durante a instalacao, anote a senha do usuario 'postgres'."
+    Write-Host "A versao 17 e necessaria para restaurar o BackupNutriJR."
+    Write-Host "Feche e reabra o terminal depois de instalar."
+    exit 1
+}
+if ($pastaPg -ne "") {
+    $env:Path = "$pastaPg;$env:Path"
+    Write-Host "PostgreSQL encontrado em: $pastaPg" -ForegroundColor Green
+} else {
+    Write-Host "PostgreSQL encontrado no PATH" -ForegroundColor Green
+}
+
+$versaoPg = (& psql --version) -replace '[^\d.]', '' -split '\.' | Select-Object -First 1
+if ([int]$versaoPg -lt 17 -and $Backup) {
+    Write-Host "Aviso: psql versao $versaoPg. O BackupNutriJR exige 17 ou superior." -ForegroundColor Yellow
+    Write-Host "A restauracao provavelmente falhara com 'unsupported version'."
+}
+
+if ($Backup -and -not (Test-Path $Backup)) {
+    Write-Host "erro: arquivo '$Backup' nao encontrado." -ForegroundColor Red
+    Write-Host "Exemplo:  Copy-Item ..\Nutri_Jr\BackupNutriJR backups\"
+    exit 1
+}
+
+# ------------------------------------------------------- ambiente virtual
+
+if (-not (Test-Path ".venv")) {
+    Write-Host "==> criando o ambiente virtual" -ForegroundColor Cyan
+    & $python -m venv .venv
+    if ($LASTEXITCODE -ne 0) { throw "falha ao criar o ambiente virtual" }
+}
+$py = ".\.venv\Scripts\python.exe"
+
+Write-Host "==> instalando as dependencias" -ForegroundColor Cyan
+& $py -m pip install --quiet --upgrade pip
+& $py -m pip install --quiet -r requirements-dev.txt
+if ($LASTEXITCODE -ne 0) { throw "falha ao instalar as dependencias" }
+
+# --------------------------------------------------------------- banco
+
+if (-not $env:PGPASSWORD) {
+    $segura = Read-Host "Senha do usuario '$UsuarioDb' do PostgreSQL" -AsSecureString
+    $env:PGPASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
+        [Runtime.InteropServices.Marshal]::SecureStringToBSTR($segura))
+}
+
+# A senha vai codificada na URL: simbolos como @ : / # quebrariam a conexao.
+$senhaUrl = [uri]::EscapeDataString($env:PGPASSWORD)
+$usuarioUrl = [uri]::EscapeDataString($UsuarioDb)
+$env:DATABASE_URL = "postgres://${usuarioUrl}:${senhaUrl}@127.0.0.1:5432/$Banco"
+$env:DJANGO_SETTINGS_MODULE = "config.settings.dev"
+
+if ($Backup) {
+    Write-Host "==> recriando o banco '$Banco'" -ForegroundColor Cyan
+    & dropdb -U $UsuarioDb --if-exists --force $Banco
+    & createdb -U $UsuarioDb $Banco
+    if ($LASTEXITCODE -ne 0) { throw "falha ao criar o banco (senha correta?)" }
+
+    Write-Host "==> restaurando o backup (o arquivo original nao e alterado)" -ForegroundColor Cyan
+    # pg_restore relata avisos benignos de propriedade/permissao; o -e nao e usado
+    # de proposito para que a restauracao continue apesar deles.
+    & pg_restore --no-owner --no-privileges -U $UsuarioDb -d $Banco $Backup
+    Write-Host "   (avisos de owner/ACL acima sao esperados e inofensivos)"
+
+    Write-Host "==> reconhecendo o schema legado" -ForegroundColor Cyan
+    & $py manage.py migrate --fake-initial --noinput
+
+    Write-Host "==> saneamento (relatorio, nada e gravado)" -ForegroundColor Cyan
+    & $py manage.py sanear_backup --dry-run
+    Write-Host "==> saneamento (aplicando)" -ForegroundColor Cyan
+    & $py manage.py sanear_backup
+
+    Write-Host ""
+    Write-Host "Acervo restaurado." -ForegroundColor Green
+    Write-Host "Os usuarios sao os reais do backup. Para criar um acesso local:"
+    Write-Host "  .\.venv\Scripts\python.exe manage.py createsuperuser"
+} else {
+    & createdb -U $UsuarioDb $Banco 2>$null
+    Write-Host "==> aplicando as migrations" -ForegroundColor Cyan
+    & $py manage.py migrate --noinput
+
+    $senhaAdmin = if ($env:INSTANCIA_ADMIN_SENHA) { $env:INSTANCIA_ADMIN_SENHA } else { "admin-local-123456" }
+    $env:INSTANCIA_ADMIN_SENHA = $senhaAdmin
+    Write-Host "==> configurando a instancia" -ForegroundColor Cyan
+    & $py manage.py bootstrap_instancia --nome "Nutri Local" --admin admin --chave CHAVE-LOCAL
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "(instancia ja estava configurada - nada a fazer)" -ForegroundColor Yellow
+    }
+    Write-Host ""
+    Write-Host "Instancia nova pronta." -ForegroundColor Green
+    Write-Host "  usuario: admin"
+    Write-Host "  senha:   $senhaAdmin"
+    Write-Host "  chave de cadastro: CHAVE-LOCAL"
+}
+
+Write-Host ""
+Write-Host "Iniciando o servidor em http://localhost:8000 (Ctrl+C para parar)" -ForegroundColor Green
+Write-Host ""
+& $py manage.py runserver

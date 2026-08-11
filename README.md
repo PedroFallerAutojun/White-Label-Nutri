@@ -7,7 +7,28 @@ dados e hospedagem próprios (ver `docs/DECISIONS.md`, D-009).
 ## Stack
 Django 5.2 LTS · PostgreSQL · Bootstrap 5 · pytest — detalhes em `docs/NEW_ARCHITECTURE.md`.
 
-## Rodando com Docker (caminho mais curto)
+## Rodando localmente (Windows, sem Docker)
+
+Requisitos: **Python 3.12+** e **PostgreSQL 17+** (a versão 17 é necessária para
+restaurar o `BackupNutriJR`). Instale com:
+
+```powershell
+winget install Python.Python.3.12
+winget install PostgreSQL.PostgreSQL.17   # anote a senha do usuário "postgres"
+```
+
+Feche e reabra o terminal, então:
+
+```powershell
+Copy-Item ..\Nutri_Jr\BackupNutriJR backups\
+.\scripts\preparar_local_sem_docker.ps1 backups\BackupNutriJR
+```
+
+O script cria o ambiente virtual, instala as dependências, restaura o backup numa
+base local, roda o saneamento e sobe o servidor em <http://localhost:8000>.
+Sem o argumento do backup, ele prepara uma instância nova e vazia.
+
+## Rodando com Docker (alternativa)
 
 Requisitos: **Docker** e **Docker Compose v2** (`docker compose version` deve responder).
 

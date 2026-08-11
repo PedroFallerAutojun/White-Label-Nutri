@@ -38,6 +38,8 @@ services:
       - 0.0.0.0:8000
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.dev
+      # Se personalizar POSTGRES_PASSWORD, use apenas caracteres seguros para URL
+      # (sem @ : / # ?) ou codifique-os — a senha viaja dentro da DATABASE_URL.
       DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-nutri}
       SECRET_KEY: ${SECRET_KEY:-desenvolvimento-local-nao-usar-em-producao}
       # O runserver serve os estáticos direto; evita escrever em /app (bind mount,
