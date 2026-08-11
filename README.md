@@ -194,6 +194,16 @@ Suíte: **117 testes**. Detalhes em `docs/PARITY_MATRIX.md`.
 As variáveis de ambiente estão documentadas em `.env.example`. Em produção,
 `SECRET_KEY` e `ALLOWED_HOSTS` são obrigatórias — a aplicação falha no boot sem elas.
 
+## Validação dos scripts
+Os scripts PowerShell passam por uma verificação estática (função chamada sem
+definição, BOM ausente, caracteres não-ASCII, chaves desbalanceadas e o padrão
+`Set-Content -Encoding UTF8` que corrompe o `pg_hba.conf`):
+
+```bash
+python scripts/validar_scripts.py
+```
+Roda também no CI, a cada push.
+
 ## Documentação
 - `docs/REVERSE_ENGINEERING.md` — engenharia reversa do sistema original
 - `docs/BUSINESS_RULES.md` — regras de negócio (BR-001..BR-030)

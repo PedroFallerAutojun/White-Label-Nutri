@@ -18,7 +18,34 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# ------------------------------------------------------------------ funcoes
+
+function Reiniciar-Postgres($nomeServico, $pastaDados) {
+    # Para, espera de fato parar e inicia. Se nao subir, mostra o log do
+    # PostgreSQL, que diz o motivo exato.
+    Stop-Service $nomeServico -Force -ErrorAction SilentlyContinue
+    for ($i = 0; $i -lt 30; $i++) {
+        if ((Get-Service $nomeServico).Status -eq "Stopped") { break }
+        Start-Sleep -Seconds 1
+    }
+    try {
+        Start-Service $nomeServico -ErrorAction Stop
+    } catch {
+        Write-Host ""
+        Write-Host "O servico do PostgreSQL nao iniciou." -ForegroundColor Red
+        $log = Get-ChildItem (Join-Path $pastaDados "log") -Filter *.log -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        if ($log) {
+            Write-Host "Ultimas linhas de $($log.FullName):" -ForegroundColor Yellow
+            Get-Content $log.FullName -Tail 15 | ForEach-Object { Write-Host "  $_" }
+        }
+        return $false
+    }
+    return $true
+}
+
 # ------------------------------------------------------------- verificacoes
+
 
 $souAdmin = ([Security.Principal.WindowsPrincipal] `
     [Security.Principal.WindowsIdentity]::GetCurrent()

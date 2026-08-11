@@ -1,0 +1,87 @@
+#!/usr/bin/env python3
+"""Validação estática dos scripts PowerShell do projeto.
+
+Verifica os erros que já nos custaram tempo:
+  1. funcao chamada sem estar definida no arquivo;
+  2. arquivo sem BOM (o Windows PowerShell 5.1 exige BOM para ler acentos);
+  3. caracteres nao-ASCII (evitam qualquer surpresa de codificacao);
+  4. chaves e parenteses desbalanceados;
+  5. Set-Content -Encoding UTF8 gravando pg_hba.conf (grava BOM e o PostgreSQL
+     se recusa a iniciar).
+
+Uso:  python scripts/validar_scripts.py
+"""
+import re
+import sys
+from pathlib import Path
+
+RAIZ = Path(__file__).resolve().parent.parent
+
+# Cmdlets e comandos externos usados pelos scripts (nao sao funcoes locais).
+CONHECIDOS = {
+    "Write-Host", "Read-Host", "Get-Content", "Set-Content", "Copy-Item", "Move-Item",
+    "Remove-Item", "Test-Path", "Join-Path", "Split-Path", "Get-Service", "Set-Location",
+    "Start-Service", "Stop-Service", "Restart-Service", "Start-Sleep", "Get-Command",
+    "Get-ChildItem", "Sort-Object", "Select-Object", "Where-Object", "ForEach-Object",
+    "Get-CimInstance", "New-Object", "Out-Null", "Out-String", "Set-ExecutionPolicy",
+}
+
+
+def validar(caminho: Path) -> list[str]:
+    problemas = []
+    bruto = caminho.read_bytes()
+    if bruto[:3] != b"\xef\xbb\xbf":
+        problemas.append("sem BOM UTF-8 (PowerShell 5.1 lera os acentos errado)")
+    texto = bruto.decode("utf-8-sig")
+
+    nao_ascii = sorted({c for c in texto if ord(c) > 127})
+    if nao_ascii:
+        problemas.append(f"caracteres nao-ASCII: {nao_ascii}")
+
+    for abre, fecha in (("{", "}"), ("(", ")")):
+        if texto.count(abre) != texto.count(fecha):
+            problemas.append(
+                f"{abre}{fecha} desbalanceados: {texto.count(abre)} x {texto.count(fecha)}"
+            )
+
+    definidas = set(re.findall(r"^\s*function\s+([\w-]+)", texto, re.M))
+    # Chamadas no estilo Verbo-Substantivo que nao sao cmdlets conhecidos.
+    candidatas = set(re.findall(r"(?<![\w.\-])([A-Z][a-z]+-[A-Z][\w-]*)", texto))
+    for nome in sorted(candidatas - CONHECIDOS - definidas):
+        problemas.append(f"'{nome}' e chamado mas nao esta definido neste arquivo")
+
+    for numero, linha in enumerate(texto.splitlines(), 1):
+        if linha.lstrip().startswith("#"):
+            continue  # comentarios podem citar o padrao proibido
+        if "Set-Content" in linha and "-Encoding UTF8" in linha:
+            problemas.append(
+                f"linha {numero}: Set-Content -Encoding UTF8 grava BOM no PowerShell 5.1; "
+                "use [System.IO.File]::WriteAllLines com UTF8Encoding($false)"
+            )
+    return problemas
+
+
+def main() -> int:
+    scripts = sorted((RAIZ / "scripts").glob("*.ps1"))
+    if not scripts:
+        print("nenhum script .ps1 encontrado")
+        return 1
+
+    total = 0
+    for script in scripts:
+        problemas = validar(script)
+        total += len(problemas)
+        if problemas:
+            print(f"[FALHA] {script.relative_to(RAIZ)}")
+            for problema in problemas:
+                print(f"    - {problema}")
+        else:
+            print(f"[  ok  ] {script.relative_to(RAIZ)}")
+
+    print()
+    print("nenhum problema encontrado." if total == 0 else f"{total} problema(s) encontrado(s).")
+    return 1 if total else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
