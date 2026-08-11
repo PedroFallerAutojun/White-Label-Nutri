@@ -44,6 +44,28 @@ function Reiniciar-Postgres($nomeServico, $pastaDados) {
     return $true
 }
 
+function Achar-Psql($pastaDados) {
+    # 1) no PATH
+    $noPath = Get-Command psql -ErrorAction SilentlyContinue
+    if ($noPath) { return $noPath.Source }
+
+    # 2) irmao da pasta de dados: ...\PostgreSQL\17\data -> ...\PostgreSQL\17\bin
+    $raizInstalacao = Split-Path $pastaDados -Parent
+    $candidato = Join-Path $raizInstalacao "bin\psql.exe"
+    if (Test-Path $candidato) { return $candidato }
+
+    # 3) varredura nas pastas padrao
+    foreach ($base in @("$env:ProgramFiles\PostgreSQL", "${env:ProgramFiles(x86)}\PostgreSQL")) {
+        if (-not (Test-Path $base)) { continue }
+        $achado = Get-ChildItem $base -Directory -ErrorAction SilentlyContinue |
+            ForEach-Object { Join-Path $_.FullName "bin\psql.exe" } |
+            Where-Object { Test-Path $_ } |
+            Select-Object -First 1
+        if ($achado) { return $achado }
+    }
+    return $null
+}
+
 # ------------------------------------------------------------- verificacoes
 
 
@@ -94,7 +116,15 @@ if (-not (Test-Path $hba)) {
     exit 1
 }
 
+$psql = Achar-Psql $pastaDados
+if (-not $psql) {
+    Write-Host "Nao foi possivel localizar o psql.exe." -ForegroundColor Red
+    Write-Host "Ele costuma ficar em: $env:ProgramFiles\PostgreSQL\17\bin\psql.exe"
+    exit 1
+}
+
 Write-Host "Servico:        $($servico.Name)"
+Write-Host "psql:           $psql"
 Write-Host "Configuracao:   $hba"
 Write-Host "Usuario alvo:   $Usuario"
 Write-Host ""
@@ -140,7 +170,7 @@ try {
 
     Write-Host "==> alterando a senha" -ForegroundColor Cyan
     $senhaEscapada = $NovaSenha -replace "'", "''"
-    & psql -U $Usuario -d postgres -c "ALTER USER $Usuario PASSWORD '$senhaEscapada'"
+    & $psql -U $Usuario -d postgres -c "ALTER USER $Usuario PASSWORD '$senhaEscapada'"
     if ($LASTEXITCODE -ne 0) { throw "o comando ALTER USER falhou" }
 }
 finally {
@@ -167,7 +197,7 @@ finally {
 
 Write-Host "==> testando a nova senha" -ForegroundColor Cyan
 $env:PGPASSWORD = $NovaSenha
-& psql -U $Usuario -d postgres -c "SELECT version();" *> $null
+& $psql -U $Usuario -d postgres -c "SELECT version();" *> $null
 $ok = ($LASTEXITCODE -eq 0)
 $env:PGPASSWORD = $null
 

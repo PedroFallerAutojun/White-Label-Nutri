@@ -27,6 +27,25 @@ CONHECIDOS = {
 }
 
 
+def sem_comentarios_nem_strings(linha: str) -> str:
+    """Remove strings e o comentario final, para que parenteses citados em texto
+    nao contem como codigo."""
+    saida = []
+    aspas = None
+    for pos, ch in enumerate(linha):
+        if aspas:
+            if ch == aspas:
+                aspas = None
+            continue
+        if ch in "\"'":
+            aspas = ch
+            continue
+        if ch == "#":
+            break
+        saida.append(ch)
+    return "".join(saida)
+
+
 def validar(caminho: Path) -> list[str]:
     problemas = []
     bruto = caminho.read_bytes()
@@ -38,10 +57,12 @@ def validar(caminho: Path) -> list[str]:
     if nao_ascii:
         problemas.append(f"caracteres nao-ASCII: {nao_ascii}")
 
+    codigo = "\n".join(sem_comentarios_nem_strings(l) for l in texto.splitlines())
     for abre, fecha in (("{", "}"), ("(", ")")):
-        if texto.count(abre) != texto.count(fecha):
+        if codigo.count(abre) != codigo.count(fecha):
             problemas.append(
-                f"{abre}{fecha} desbalanceados: {texto.count(abre)} x {texto.count(fecha)}"
+                f"{abre}{fecha} desbalanceados no codigo: "
+                f"{codigo.count(abre)} x {codigo.count(fecha)}"
             )
 
     definidas = set(re.findall(r"^\s*function\s+([\w-]+)", texto, re.M))
@@ -58,6 +79,23 @@ def validar(caminho: Path) -> list[str]:
                 f"linha {numero}: Set-Content -Encoding UTF8 grava BOM no PowerShell 5.1; "
                 "use [System.IO.File]::WriteAllLines com UTF8Encoding($false)"
             )
+
+    # Ferramentas do PostgreSQL nao estao no PATH em instalacoes padrao do Windows:
+    # ou o script acrescenta o bin ao PATH, ou invoca pelo caminho absoluto (& $psql).
+    ajusta_path = "$env:Path =" in texto
+    if not ajusta_path:
+        ferramentas = r"(psql|pg_restore|pg_dump|createdb|dropdb)"
+        for numero, linha in enumerate(texto.splitlines(), 1):
+            codigo_linha = sem_comentarios_nem_strings(linha)
+            if "docker" in codigo_linha:
+                continue  # roda dentro do container, onde as ferramentas existem
+            # chamada "pelada": nome sem $ antes e sem .exe, seguido de argumento
+            if re.search(rf"(^|[|;&]\s*){ferramentas}\s+-", codigo_linha):
+                problemas.append(
+                    f"linha {numero}: ferramenta do PostgreSQL chamada sem resolver o "
+                    "caminho; no Windows o bin nao esta no PATH por padrao "
+                    "(use & $psql ou ajuste $env:Path)"
+                )
     return problemas
 
 
