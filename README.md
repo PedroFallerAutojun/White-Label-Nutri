@@ -48,33 +48,23 @@ psql --version
 
 ### Senha do PostgreSQL esquecida
 
-Se você já tinha o PostgreSQL e não lembra a senha do usuário `postgres`, há dois caminhos.
-
-**Mais simples — instalar a 17 ao lado** (necessária de todo modo para o backup):
-durante a instalação você define uma senha nova, e a instância antiga fica intacta.
-Depois use `-Porta 5433` como acima.
-
-**Redefinir a senha da instância existente** (requer PowerShell como Administrador):
+O PostgreSQL não permite recuperar a senha, apenas trocá-la. Antes de trocar, vale
+conferir se ela está salva em algum lugar:
 
 ```powershell
-# 1. localize o arquivo de configuração (ajuste a versão)
-$data = "$env:ProgramFiles\PostgreSQL\16\data"
-Copy-Item "$data\pg_hba.conf" "$data\pg_hba.conf.bak"       # backup antes de mexer
-
-# 2. libere temporariamente a autenticação local
-(Get-Content "$data\pg_hba.conf") -replace 'scram-sha-256|md5', 'trust' |
-    Set-Content "$data\pg_hba.conf"
-Restart-Service postgresql-x64-16
-
-# 3. defina a nova senha
-psql -U postgres -c "ALTER USER postgres PASSWORD \'novaSenha123\'"
-
-# 4. restaure a configuração original e reinicie
-Move-Item "$data\pg_hba.conf.bak" "$data\pg_hba.conf" -Force
-Restart-Service postgresql-x64-16
+Get-Content "$env:APPDATA\postgresql\pgpass.conf"   # senhas salvas em texto puro, se existirem
 ```
 
-O passo 4 é obrigatório: sem ele, qualquer processo local conecta ao banco sem senha.
+Se não estiver, redefina com o script (abra o PowerShell **como Administrador**):
+
+```powershell
+.\scripts\redefinir_senha_postgres.ps1 -NovaSenha "minhaSenha123"
+```
+
+Ele localiza a instalação pelo serviço do Windows, libera a autenticação local por
+alguns segundos, troca a senha e **restaura a configuração original** — inclusive se
+algo falhar no meio (a restauração está num bloco `finally`). No fim, testa a nova
+senha. Com mais de uma versão instalada, escolha qual com `-Versao 17`.
 
 ## Rodando com Docker (alternativa)
 
