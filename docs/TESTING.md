@@ -38,6 +38,19 @@ Meta: 1.557/1.557. Exceções permitidas apenas para bugs corrigidos com decisã
 registrada (ex.: B3 Manganês — o golden carrega o valor errado do original; o teste
 marca essas linhas como `xfail-corrigido`).
 
+## 1b. Segundo oráculo: golden_paridade.json.gz (cálculo)
+
+Gerado em 2026-08-11 executando o `attTabela` ORIGINAL (com rollback) sobre a cópia do
+backup: para cada uma das 1.558 fichas com tabela, captura **entradas** (pesos da ficha +
+itens da receita com os _100g dos ingredientes), **tabela persistida** (46×7 valores
+gravados) e **recálculo** (46×5 valores após attTabela + pesoLiquidoPreparacao/numPorcoes).
+2 fichas falham no próprio original (`float * None` — B16) e ficam registradas com o erro.
+
+Status da paridade (2026-08-11): ✅ `test_paridade_calculo` — 1.556/1.556 fichas idênticas
+(tolerância 1e-9); ✅ `test_paridade_rotulo` — 1.557/1.557 fichas (linhas, lupas, cabeçalho
+e lista de ingredientes; empates de peso tratados por equivalência de grupos — B17;
+Manganês validado contra o valor bugado do golden — B3 corrigido).
+
 ## 2. Testes unitários do domínio (BR-001..BR-030)
 - `arredondamento`: tabela de casos do round_half_down e faixas ANVISA (BR-006),
   limites de zero (BR-007) — incluindo os casos de borda 0.5/4/17/5/0.2.
