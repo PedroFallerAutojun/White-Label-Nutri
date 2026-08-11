@@ -7,7 +7,37 @@ dados e hospedagem próprios (ver `docs/DECISIONS.md`, D-009).
 ## Stack
 Django 5.2 LTS · PostgreSQL · Bootstrap 5 · pytest — detalhes em `docs/NEW_ARCHITECTURE.md`.
 
-## Desenvolvimento
+## Rodando com Docker (caminho mais curto)
+
+Requisitos: Docker e Docker Compose.
+
+```bash
+# instância nova, vazia (cria admin e chave de cadastro)
+./scripts/preparar_local.sh
+
+# ou restaurando o acervo da Nutri Jr a partir de uma cópia do backup
+cp /caminho/para/BackupNutriJR backups/
+./scripts/preparar_local.sh backups/BackupNutriJR
+```
+
+Depois: <http://localhost:8000>. Numa instância nova, o script cria o administrador
+`admin` com senha `admin-local-123456` e a chave de cadastro `CHAVE-LOCAL`
+(personalizáveis por variáveis de ambiente — veja o script).
+
+O PostgreSQL do compose é a **versão 17** de propósito: o `BackupNutriJR` foi gerado
+com pg_dump 17 e só é restaurável por um pg_restore 17+. A pasta `backups/` é montada
+como **somente leitura**, então o arquivo original nunca é alterado.
+
+Comandos úteis:
+```bash
+docker compose logs -f web
+docker compose exec web pytest -q
+docker compose exec web python manage.py sanear_backup --dry-run
+docker compose down            # para tudo (mantém o banco)
+docker compose down -v         # apaga também o volume do banco
+```
+
+## Desenvolvimento (sem Docker)
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt

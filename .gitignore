@@ -7,3 +7,7 @@ db.sqlite3
 staticfiles/
 media/
 .pytest_cache/
+
+# Backups locais (nunca versionar dados de cliente)
+backups/*
+!backups/LEIA-ME.md
