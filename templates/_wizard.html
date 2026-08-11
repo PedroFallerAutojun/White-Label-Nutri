@@ -1,0 +1,29 @@
+{# Indicador de etapas do cadastro de ficha #}
+<nav class="mb-4 passo-wizard" aria-label="Etapas da ficha">
+  <ul class="nav nav-pills gap-2 small">
+    {% if fichaAtual %}
+      <li class="nav-item">
+        <a class="nav-link {% if passo == 1 %}active{% else %}text-secondary{% endif %}"
+           {% if passo == 1 %}aria-current="step"{% endif %}
+           href="{% url 'editarFicha1' fichaAtual.pk %}">1. Dados base</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link {% if passo == 2 %}active{% else %}text-secondary{% endif %}"
+           {% if passo == 2 %}aria-current="step"{% endif %}
+           href="{% url 'editarFicha2' fichaAtual.pk %}">2. Receita</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link {% if passo == 3 %}active{% else %}text-secondary{% endif %}"
+           {% if passo == 3 %}aria-current="step"{% endif %}
+           href="{% url 'editarFicha3' fichaAtual.pk %}">3. Tabela nutricional</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link text-secondary" href="{% url 'fichaX' fichaAtual.pk %}">Rótulo final</a>
+      </li>
+    {% else %}
+      <li class="nav-item"><span class="nav-link active" aria-current="step">1. Dados base</span></li>
+      <li class="nav-item"><span class="nav-link text-secondary">2. Receita</span></li>
+      <li class="nav-item"><span class="nav-link text-secondary">3. Tabela nutricional</span></li>
+    {% endif %}
+  </ul>
+</nav>

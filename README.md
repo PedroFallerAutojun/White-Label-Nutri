@@ -17,7 +17,15 @@ python manage.py migrate            # instância nova
 python manage.py migrate --fake-initial
 python manage.py runserver
 pytest
+
+# paridade ponta a ponta contra o acervo legado restaurado
+PARIDADE_DB=nutri_paridade pytest tests/integration/test_paridade_rotulo_e2e.py
 ```
+
+## Status
+Etapas concluídas: E1 (fundação), E2 (cálculo e rótulo com paridade validada),
+E3/E4 (telas do wizard, ingredientes, upload e rótulo final).
+Paridade com o sistema original: **1.557/1.557 rótulos idênticos**.
 
 ## Documentação
 - `docs/REVERSE_ENGINEERING.md` — engenharia reversa do sistema original

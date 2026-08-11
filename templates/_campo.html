@@ -1,0 +1,13 @@
+{# Renderiza um campo de formulário com label, erros e ajuda acessíveis #}
+<div class="mb-3">
+  <label class="form-label" for="{{ campo.id_for_label }}">
+    {{ campo.label }}{% if campo.field.required %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}
+  </label>
+  {{ campo }}
+  {% if campo.help_text %}
+    <div class="form-text" id="{{ campo.id_for_label }}_ajuda">{{ campo.help_text }}</div>
+  {% endif %}
+  {% for erro in campo.errors %}
+    <div class="invalid-feedback d-block">{{ erro }}</div>
+  {% endfor %}
+</div>

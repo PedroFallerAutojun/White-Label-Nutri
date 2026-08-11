@@ -49,7 +49,19 @@ gravados) e **recálculo** (46×5 valores após attTabela + pesoLiquidoPreparaca
 Status da paridade (2026-08-11): ✅ `test_paridade_calculo` — 1.556/1.556 fichas idênticas
 (tolerância 1e-9); ✅ `test_paridade_rotulo` — 1.557/1.557 fichas (linhas, lupas, cabeçalho
 e lista de ingredientes; empates de peso tratados por equivalência de grupos — B17;
-Manganês validado contra o valor bugado do golden — B3 corrigido).
+Manganês validado contra o valor bugado do golden — B3 corrigido);
+✅ `test_paridade_rotulo_e2e` — 1.557/1.557 rótulos **renderizados pela nova aplicação**
+sobre o banco legado, sem divergências e sem erro HTTP.
+
+### Rodando a paridade ponta a ponta
+O teste e2e precisa do acervo legado. Restaure uma cópia do backup e aponte o pytest a ela
+com `PARIDADE_DB` (o banco não é criado nem destruído — os testes que o usam são somente
+leitura):
+
+```bash
+PARIDADE_DB=nutri_paridade pytest tests/integration/test_paridade_rotulo_e2e.py
+```
+Sem a variável o teste é pulado, então a suíte continua verde em ambientes sem o dump.
 
 ## 2. Testes unitários do domínio (BR-001..BR-030)
 - `arredondamento`: tabela de casos do round_half_down e faixas ANVISA (BR-006),

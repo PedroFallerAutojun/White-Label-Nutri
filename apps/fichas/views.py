@@ -1,20 +1,42 @@
-"""Views da E1 (fundação): autenticação e listagem de fichas.
+"""Views do sistema — portadas do original com paridade funcional.
 
-Paridade com o original (ver docs/BUSINESS_RULES.md):
-- BR-027: abrir a página de login derruba a sessão atual; falha de autenticação
-  exibe "Não foi possível fazer login".
-- BR-028: filtro de fichas por contains (Receita/Cliente/Autor) e ordenação
-  por data de criação decrescente.
-As demais telas chegam nas fases E3–E5.
+Diferenças intencionais (D-005), todas de segurança e não de comportamento:
+- toda mutação exige login e método POST (o original expunha várias por GET
+  sem autenticação — B10);
+- ausência de registro devolve 404 em vez de 500 (get_object_or_404);
+- B1/B2/B3/B4/B5/B7/B12/B15/B16 corrigidos (ver docs/FUTURE_IMPROVEMENTS.md).
+
+Regras de negócio: ver docs/BUSINESS_RULES.md (BR-XXX citadas no código).
 """
+import csv
+import io
+
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
-from django.shortcuts import redirect, render
+from django.db.models.functions import Lower
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
 
-from apps.fichas.forms import FichaFiltroForm, LoginForm
-from apps.fichas.models import Ficha
+from apps.fichas import servicos
+from apps.fichas.dominio import rotulo
+from apps.fichas.dominio.lupas_img import LUPAS_BASE64
+from apps.fichas.dominio.nutrientes import NUTRIENTES, POR_CHAVE
+from apps.fichas.forms import (
+    FichaFiltroForm,
+    FichaFormBase,
+    FormInformacoesComplementares,
+    IngredienteFiltroForm,
+    IngredienteForm,
+    LoginForm,
+    NutrienteForm,
+    ReceitaForm,
+)
+from apps.fichas.models import Ficha, Ficha_Ingrediente, Ingrediente, Membro, Nutriente
+from apps.plataforma.models import ConfiguracaoInstancia
+
+# ---------------------------------------------------------------- autenticação
 
 
 def login_user(request):
@@ -37,6 +59,9 @@ def logout_user(request):
     return redirect("loginUser")
 
 
+# ---------------------------------------------------------------------- fichas
+
+
 @login_required
 def lista_fichas(request):
     fichas = Ficha.objects.select_related("autor").order_by("-dataCriacao")
@@ -48,7 +73,538 @@ def lista_fichas(request):
             & Q(autor__nome__contains=form_filtro.cleaned_data["f_autor"])
         )
     return render(
-        request,
-        "fichas_registradas.html",
-        {"fichas": fichas, "formFiltro": form_filtro},
+        request, "fichas_registradas.html", {"fichas": fichas, "formFiltro": form_filtro}
     )
+
+
+@login_required
+def registrar_ficha_base(request):
+    """Passo 1/3 — cria a ficha e sua tabela com o mesmo pk (BR-015)."""
+    form = FichaFormBase(request.POST or None)
+    if form.is_valid():
+        nova = form.save()
+        servicos.obter_tabela(nova)
+        return redirect("editarFicha2", pk=nova.pk)
+    return render(request, "ficha_base.html", {"form": form, "passo": 1})
+
+
+@login_required
+def editar_ficha_base(request, pk):
+    """Passo 1/3 em edição — salvar recalcula a tabela (pesos mudaram)."""
+    ficha = get_object_or_404(Ficha, pk=pk)
+    form = FichaFormBase(request.POST or None, instance=ficha)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        servicos.recalcular_tabela(ficha)
+        return redirect("editarFicha2", pk=pk)
+    return render(request, "ficha_base.html", {"form": form, "fichaAtual": ficha, "passo": 1})
+
+
+@login_required
+def editar_ficha_receita(request, pk):
+    """Passo 2/3 — monta a receita (BR-016, BR-017)."""
+    ficha = get_object_or_404(Ficha, pk=pk)
+    tabela = servicos.obter_tabela(ficha)
+    form_receita = ReceitaForm(request.POST or None)
+
+    if request.method == "POST" and form_receita.is_valid():
+        if not ficha.pesoTotal or not ficha.pesoPorcao:
+            messages.error(
+                request,
+                "Informe o peso total e o peso da porção na etapa 1 antes de "
+                "adicionar ingredientes.",
+            )
+            return redirect("editarFicha2", pk=pk)
+
+        nome = request.POST.get("ingExtra", "")
+        escolhido = Ingrediente.objects.filter(nomeIng=nome).first()
+        if escolhido is None:
+            messages.error(request, "Ingrediente para adicionar a receita não foi encontrado")
+            return redirect("editarFicha2", pk=pk)
+
+        item = form_receita.save(commit=False)
+        item.ficha = ficha
+        item.ingrediente = escolhido
+        item.save()
+        servicos.recalcular_tabela(ficha)
+        messages.success(request, f"{escolhido.nomeIng} adicionado à receita.")
+        return redirect("editarFicha2", pk=pk)
+
+    return render(
+        request,
+        "ficha_receita.html",
+        {
+            "fichaAtual": ficha,
+            "formReceita": form_receita,
+            "itensReceita": Ficha_Ingrediente.objects.filter(ficha=ficha).select_related(
+                "ingrediente"
+            ),
+            "tabelaNutricional": tabela,
+            "nutrientesExtras": Nutriente.objects.filter(origemTabela=tabela),
+            "ingredientes": _ingredientes_disponiveis(),
+            "passo": 2,
+        },
+    )
+
+
+@login_required
+@require_POST
+def deletar_item_receita(request, pk, id):
+    """BR-018: não remove o último item da receita."""
+    ficha = get_object_or_404(Ficha, pk=pk)
+    itens = Ficha_Ingrediente.objects.filter(ficha=ficha)
+    if itens.count() > 1:
+        get_object_or_404(Ficha_Ingrediente, pk=id, ficha=ficha).delete()
+        servicos.recalcular_tabela(ficha)
+    else:
+        messages.error(request, "A receita precisa ter pelo menos um ingrediente.")
+    return redirect("editarFicha2", pk=pk)
+
+
+@login_required
+def editar_item_receita(request, pk, id):
+    """Edita um item da receita. Salvar recalcula a tabela (corrige B12)."""
+    ficha = get_object_or_404(Ficha, pk=pk)
+    item = get_object_or_404(Ficha_Ingrediente, pk=id, ficha=ficha)
+    form = ReceitaForm(request.POST or None, instance=item)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        servicos.recalcular_tabela(ficha)
+        messages.success(request, "Item da receita atualizado.")
+        return redirect("editarFicha2", pk=pk)
+    return render(
+        request, "ficha_item_receita.html", {"item": item, "form": form, "fichaAtual": ficha}
+    )
+
+
+@login_required
+def editar_ficha_tabela(request, pk):
+    """Passo 3/3 — visibilidade dos nutrientes, extras e informações complementares."""
+    ficha = get_object_or_404(Ficha, pk=pk)
+    tabela = servicos.obter_tabela(ficha)
+    form_nutriente = NutrienteForm(request.POST or None)
+    form_info = FormInformacoesComplementares(instance=tabela)
+
+    if request.method == "POST":
+        if request.POST.get("acao") == "nutriente":
+            if form_nutriente.is_valid():
+                extra = form_nutriente.save(commit=False)
+                extra.origemTabela = tabela
+                extra.save()
+                messages.success(request, "Nutriente adicionado à tabela.")
+                return redirect("editarFicha3", pk=pk)
+        else:
+            form_info = FormInformacoesComplementares(request.POST, instance=tabela)
+            if form_info.is_valid():
+                form_info.save()
+                return redirect("fichaX", pk=pk)
+
+    return render(
+        request,
+        "ficha_tabela.html",
+        {
+            "fichaAtual": ficha,
+            "tabelaNutricional": tabela,
+            "linhasTabela": _linhas_edicao(tabela),
+            "nutrientesExtras": Nutriente.objects.filter(origemTabela=tabela),
+            "formNutriente": form_nutriente,
+            "formInfComplementares": form_info,
+            "passo": 3,
+        },
+    )
+
+
+@login_required
+@require_POST
+def deletar_nutriente_extra(request, pk):
+    extra = get_object_or_404(Nutriente, pk=pk)
+    ficha_pk = extra.origemTabela.origem.pk
+    extra.delete()
+    return redirect("editarFicha3", pk=ficha_pk)
+
+
+@login_required
+@require_POST
+def atualizar_mostrar(request, pk, item):
+    """Inverte a visibilidade de um nutriente na tabela final (BR-030)."""
+    ficha = get_object_or_404(Ficha, pk=pk)
+    tabela = servicos.obter_tabela(ficha)
+    if item not in POR_CHAVE:
+        messages.error(request, "Nutriente desconhecido.")
+        return redirect("editarFicha3", pk=pk)
+    campo = f"{item}_Mostrar"
+    setattr(tabela, campo, not getattr(tabela, campo))
+    tabela.save(update_fields=[campo])
+    return redirect("editarFicha3", pk=pk)
+
+
+@login_required
+def ficha_x(request, pk):
+    """Rótulo final (BR-009..BR-014, BR-030)."""
+    ficha = get_object_or_404(Ficha, pk=pk)
+    tabela = servicos.obter_tabela(ficha)  # B4: cria se faltar em vez de 500
+
+    valores = {
+        n.chave: rotulo.ValoresNutriente(
+            arred=getattr(tabela, f"{n.chave}_Arred"),
+            vd=getattr(tabela, f"{n.chave}_VD"),
+            unidade=getattr(tabela, f"{n.chave}_unidadeMd"),
+            por_100g=getattr(tabela, f"{n.chave}_100g"),
+            mostrar=getattr(tabela, f"{n.chave}_Mostrar"),
+        )
+        for n in NUTRIENTES
+    }
+    extras = [
+        (extra.nomeNutri, extra.qtde_Arred, extra.qtde_VD)
+        for extra in Nutriente.objects.filter(origemTabela=tabela)
+    ]
+    linhas = rotulo.montar_linhas(valores, extras)
+
+    itens = [
+        {
+            "nomeFantasia": item.nomeFantasia,
+            "pesoLiquido": item.pesoLiquido,
+            "composicao": item.ingrediente.composicao,
+        }
+        for item in Ficha_Ingrediente.objects.filter(ficha=ficha).select_related("ingrediente")
+    ]
+
+    combinacao = rotulo.combinacao_lupa(
+        rotulo.nutrientes_altos(
+            tabela.acucaresadd_100g, tabela.gordSat_100g, tabela.sodio_100g
+        )
+    )
+
+    return render(
+        request,
+        "ficha_rotulo.html",
+        {
+            "fichaAtual": ficha,
+            "tabelaAtual": tabela,
+            "linhas": linhas,
+            "linhasIndentadas": rotulo.INDENTADOS,
+            "pesoAnvisaSemZero": rotulo.peso_anvisa_sem_zero(
+                ficha.pesoAnvisa, ficha.pesoPorcao
+            ),
+            "numPorcoesExibicao": rotulo.calcular_num_porcoes(
+                ficha.pesoPorcao, ficha.pesoAnvisa
+            ),
+            "numPorcoes": rotulo.num_porcoes_exibicao(ficha.pesoPorcao, ficha.pesoAnvisa),
+            "ordemIngredientes": rotulo.ordenar_ingredientes(itens),
+            "lupa_img": LUPAS_BASE64.get(combinacao) if combinacao else None,
+        },
+    )
+
+
+@login_required
+@require_POST
+def atualizar_finalizada(request, pk):
+    """BR-021: selo de finalizada é um toggle livre."""
+    ficha = get_object_or_404(Ficha, pk=pk)
+    ficha.finalizada = not ficha.finalizada
+    ficha.save(update_fields=["finalizada"])
+    return redirect("fichaX", pk=ficha.pk)
+
+
+@login_required
+@require_POST
+def deletar_ficha(request, pk):
+    """BR-020: exclusão em cascata (tabela, itens da receita, nutrientes extras)."""
+    ficha = get_object_or_404(Ficha, pk=pk)
+    nome = ficha.nomeFicha
+    ficha.delete()
+    messages.success(request, f'Ficha "{nome}" excluída.')
+    return redirect("listaFichas")
+
+
+# ---------------------------------------------------------------- ingredientes
+
+
+def _ingredientes_disponiveis():
+    """BR-017/D-010: corte por ano é configuração da instância."""
+    qs = Ingrediente.objects.all()
+    config = ConfiguracaoInstancia.atual()
+    if config and config.ano_corte_ingredientes:
+        qs = qs.filter(dataCriacao__year__gte=config.ano_corte_ingredientes)
+    return qs.order_by(Lower("nomeIng"))
+
+
+@login_required
+def lista_ingredientes(request):
+    ingredientes = _ingredientes_disponiveis().select_related("autorIng")
+    form_filtro = IngredienteFiltroForm(request.POST or None)
+    if form_filtro.is_valid():
+        # B11 corrigido: o filtro respeita o mesmo recorte da listagem
+        ingredientes = ingredientes.filter(
+            Q(nomeIng__icontains=form_filtro.cleaned_data["f_nomeIng"])
+            & Q(origemDosDados__icontains=form_filtro.cleaned_data["f_origemDosDados"])
+            & Q(autorIng__nome__icontains=form_filtro.cleaned_data["f_autorIng"])
+        )
+    return render(
+        request,
+        "ingredientes_registrados.html",
+        {"ingredientes": ingredientes, "formFiltro": form_filtro},
+    )
+
+
+def _campos_nutrientes(form):
+    """Campos de nutrientes do formulário, com rótulo e unidade do registro."""
+    campos = []
+    for n in NUTRIENTES:
+        if n.chave in form.fields:
+            campos.append(
+                {
+                    "campo": form[n.chave],
+                    "rotulo": n.rotulo or "Valor energético (kJ)",
+                    "unidade": n.unidade,
+                }
+            )
+    return campos
+
+
+@login_required
+def registrar_ingrediente(request):
+    form = IngredienteForm(request.POST or None)
+    if form.is_valid():
+        if Ingrediente.objects.filter(nomeIng=form.cleaned_data["nomeIng"]).exists():
+            messages.error(
+                request,
+                "Já existe um ingrediente com esse nome. Não foi possível realizar o cadastro.",
+            )
+        else:
+            ingrediente = form.save(commit=False)
+            servicos.normalizar_100g(ingrediente)
+            ingrediente.save()  # B5 corrigido (o original tinha `ing.save` sem chamar)
+            messages.success(request, f"Ingrediente {ingrediente.nomeIng} cadastrado.")
+            return redirect("listaIngredientes")
+    return render(
+        request,
+        "ingrediente_form.html",
+        {"form": form, "camposNutrientes": _campos_nutrientes(form)},
+    )
+
+
+@login_required
+def editar_ingrediente(request, pk):
+    ingrediente = get_object_or_404(Ingrediente, pk=pk)
+    form = IngredienteForm(request.POST or None, instance=ingrediente)
+    if request.method == "POST" and form.is_valid():
+        duplicado = (
+            Ingrediente.objects.filter(nomeIng=form.cleaned_data["nomeIng"])
+            .exclude(pk=ingrediente.pk)
+            .exists()
+        )
+        if duplicado:
+            messages.error(
+                request,
+                "Já existe um ingrediente com esse nome. Não foi possível realizar o cadastro.",
+            )
+        else:
+            atualizado = form.save(commit=False)
+            servicos.normalizar_100g(atualizado)
+            atualizado.save()
+            # BR-013/B13 (D-006): fichas existentes NÃO são recalculadas.
+            messages.success(request, "Ingrediente atualizado.")
+            return redirect("listaIngredientes")
+    return render(
+        request,
+        "ingrediente_form.html",
+        {
+            "form": form,
+            "ingrediente": ingrediente,
+            "camposNutrientes": _campos_nutrientes(form),
+        },
+    )
+
+
+@login_required
+@require_POST
+def deletar_ingrediente(request, pk):
+    ingrediente = get_object_or_404(Ingrediente, pk=pk)
+    em_uso = Ficha_Ingrediente.objects.filter(ingrediente=ingrediente).count()
+    nome = ingrediente.nomeIng
+    ingrediente.delete()
+    if em_uso:
+        messages.warning(
+            request,
+            f'"{nome}" foi excluído e removido de {em_uso} receita(s) que o utilizavam.',
+        )
+    else:
+        messages.success(request, f'Ingrediente "{nome}" excluído.')
+    return redirect("listaIngredientes")
+
+
+# Mapeamento fixo das colunas do TXT da TACO (BR-023)
+COLUNAS_TACO = {
+    "energiakcal": 4, "energiaKJ": 5, "proteinas": 6, "gordTotais": 7,
+    "colesterol": 8, "carboidratos": 9, "fibras": 10, "calcio": 12,
+    "magnesio": 13, "manganes": 15, "fosforo": 16, "ferro": 17, "sodio": 18,
+    "potassio": 19, "cobre": 20, "zinco": 21, "retinol": 22, "RE": 23,
+    "vitaminaARAE": 24, "tiamina": 25, "riboflavina": 26, "piridoxina": 27,
+    "niancina": 28, "vitaminaC": 29, "gordSat": 31, "gordMono": 32, "gordPoli": 33,
+}
+
+
+@login_required
+def upload(request):
+    """BR-023 — importação em lote de ingredientes (TXT separado por TAB)."""
+    if request.method != "POST":
+        return render(request, "upload.html")
+
+    arquivo = request.FILES.get("files")
+    if arquivo is None or not arquivo.name.endswith(".txt"):
+        messages.error(
+            request, "Coloque um arquivo TXT separado por TAB (extraído do Excel desktop)."
+        )
+        return render(request, "upload.html")
+
+    autor = Membro.objects.filter(usuario=request.user).first() or Membro.objects.first()
+    if autor is None:
+        messages.error(request, "Cadastre um membro antes de importar ingredientes.")
+        return render(request, "upload.html")
+
+    try:
+        conteudo = arquivo.read().decode("utf-8")
+    except UnicodeDecodeError:
+        messages.error(request, "Não foi possível ler o arquivo: use codificação UTF-8.")
+        return render(request, "upload.html")
+
+    leitor = csv.reader(io.StringIO(conteudo), delimiter="\t", quotechar="|")
+    next(leitor, None)  # cabeçalho
+
+    criados = atualizados = 0
+    erros: list[str] = []
+    for numero, coluna in enumerate(leitor, start=2):
+        if not coluna or not any(coluna):
+            continue
+        try:
+            valores = {
+                chave: float((coluna[indice] or "0").replace(",", "."))
+                for chave, indice in COLUNAS_TACO.items()
+            }
+            # Gorduras trans = 18:1t + 18:2t (BR-023)
+            valores["gordTrans"] = float((coluna[52] or "0").replace(",", ".")) + float(
+                (coluna[53] or "0").replace(",", ".")
+            )
+            _, criado = Ingrediente.objects.update_or_create(
+                nomeIng=coluna[2],
+                defaults={
+                    "autorIng": autor,
+                    "origemDosDados": coluna[0],
+                    "addManualmente": True,
+                    "numRef": int(float(coluna[1] or 0)),
+                    "dataCriacao": "2019-09-26",
+                    **valores,
+                },
+            )
+            criados += criado
+            atualizados += not criado
+        except (IndexError, ValueError) as erro:
+            erros.append(f"linha {numero}: {erro}")
+
+    for ingrediente in Ingrediente.objects.all():
+        servicos.normalizar_100g(ingrediente)
+        ingrediente.save()
+
+    if criados or atualizados:
+        messages.success(
+            request,
+            f"Importação concluída: {criados} ingrediente(s) criado(s), "
+            f"{atualizados} atualizado(s).",
+        )
+    if erros:
+        messages.warning(
+            request,
+            f"{len(erros)} linha(s) ignorada(s) por dados inválidos: " + "; ".join(erros[:5]),
+        )
+    return render(request, "upload.html")
+
+
+# ---------------------------------------------------------------------- outros
+
+
+PERGUNTAS_AJUDA = [
+    {
+        "pergunta": "Como cadastrar um novo usuário no sistema?",
+        "resposta": [
+            "Saia do usuário atual clicando em “Sair” no menu. Na tela de login, "
+            "clique em “Cadastre-se”.",
+            "Preencha os dados e informe a chave de cadastro — peça ao administrador.",
+        ],
+    },
+    {
+        "pergunta": "Como criar uma nova ficha?",
+        "resposta": [
+            "Na lista de fichas, clique em “Nova ficha”. O cadastro tem três etapas: "
+            "dados base, receita e tabela nutricional.",
+            "Os pesos informados na etapa 1 (peso total e peso da porção) são "
+            "obrigatórios para adicionar ingredientes na etapa 2.",
+        ],
+    },
+    {
+        "pergunta": "Como adicionar novos ingredientes?",
+        "resposta": [
+            "Em “Ingredientes”, clique em “Novo ingrediente”. Você também pode cadastrar "
+            "direto da etapa 2 da ficha, pelo botão “Cadastrar novo ingrediente”.",
+            "Informe os nutrientes contidos na quantidade indicada — o sistema normaliza "
+            "os valores para 100 g automaticamente.",
+        ],
+    },
+    {
+        "pergunta": "Posso editar uma ficha finalizada?",
+        "resposta": [
+            "Sim. O selo “Finalizada” é informativo e pode ser alternado a qualquer "
+            "momento na tela do rótulo; ele não bloqueia a edição.",
+        ],
+    },
+    {
+        "pergunta": "Editar um ingrediente altera as fichas já criadas?",
+        "resposta": [
+            "Não. As fichas existentes preservam os valores calculados no momento em que "
+            "foram editadas, para que rótulos já emitidos não mudem sozinhos.",
+            "Para atualizar uma ficha com os novos valores do ingrediente, abra a ficha e "
+            "salve novamente qualquer etapa — o recálculo acontece nesse momento.",
+        ],
+    },
+    {
+        "pergunta": "Como levar o rótulo para o Google Docs?",
+        "resposta": [
+            "Na tela do rótulo, use “Copiar conteúdo”: as duas tabelas (vertical e linear), "
+            "a lista de ingredientes, os alérgicos e as lupas são copiados com formatação.",
+            "Cole no documento com Ctrl+V (ou Cmd+V).",
+        ],
+    },
+    {
+        "pergunta": "O que são as lupas “ALTO EM”?",
+        "resposta": [
+            "São os selos de rotulagem frontal exigidos pela ANVISA. Aparecem "
+            "automaticamente quando, por 100 g, o produto tem 15 g ou mais de açúcares "
+            "adicionados, 6 g ou mais de gorduras saturadas, ou 600 mg ou mais de sódio.",
+        ],
+    },
+]
+
+
+@login_required
+def ajuda(request):
+    return render(request, "ajuda.html", {"perguntas": PERGUNTAS_AJUDA})
+
+
+def _linhas_edicao(tabela):
+    """Linhas da tela de edição da tabela (passo 3), a partir do registro."""
+    linhas = []
+    for n in NUTRIENTES:
+        linhas.append(
+            {
+                "chave": n.chave,
+                "rotulo": n.rotulo or "Valor energético (kJ)",
+                "total": getattr(tabela, n.chave),
+                "por_100g": getattr(tabela, f"{n.chave}_100g"),
+                "por_porcao": getattr(tabela, f"{n.chave}_Porcao"),
+                "arred": getattr(tabela, f"{n.chave}_Arred"),
+                "vd": getattr(tabela, f"{n.chave}_VD"),
+                "unidade": getattr(tabela, f"{n.chave}_unidadeMd"),
+                "mostrar": getattr(tabela, f"{n.chave}_Mostrar"),
+            }
+        )
+    return linhas

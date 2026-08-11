@@ -1,1 +1,49 @@
 /* estilos da instância */
+
+/* ---------- Rótulo ANVISA ---------------------------------------------------
+   Estrutura visual preservada do sistema original: o bloco é copiado para o
+   Google Docs, então mudanças aqui afetam o documento entregue ao cliente. */
+.rotulo-vertical,
+.rotulo-linear {
+  border: 2px solid #000;
+  border-collapse: collapse;
+  background-color: #fff;
+  color: #000;
+  font-family: Arial, Helvetica, sans-serif;
+}
+.rotulo-vertical { width: 350px; }
+.rotulo-linear { width: 100%; max-width: 600px; }
+
+.rotulo-vertical td,
+.rotulo-linear td {
+  border: 1px solid #000;
+  text-align: center;
+  padding: 5px;
+  font-size: 10.5px;
+  vertical-align: middle;
+}
+.rotulo-vertical td { width: 23%; }
+.rotulo-vertical .primeira-coluna,
+.rotulo-linear td {
+  text-align: left;
+  width: auto;
+}
+.rotulo-vertical .primeira-coluna.indentado { padding-left: 14px; }
+.rotulo-cabecalho { font-size: 13px; text-align: center; }
+.rotulo-nota { font-size: 8px; text-align: left; }
+.rotulo-texto { text-align: justify; font-size: 10.5px; }
+.sem-quebra { white-space: nowrap; }
+.alergicos { text-transform: uppercase; }
+.linha-cabeca1 { border: 0; border-top: 1px solid #000; margin: 4px 0; }
+.linha-cabeca2 { border: 0; border-top: 4px solid #000; margin: 4px 0; }
+
+/* ---------- Utilitários da aplicação -------------------------------------- */
+.btn-primario-instancia {
+  background-color: var(--cor-primaria);
+  color: #fff;
+}
+.btn-primario-instancia:hover { filter: brightness(0.92); color: #fff; }
+.passo-wizard .nav-link.active {
+  background-color: var(--cor-primaria);
+  color: #fff;
+}

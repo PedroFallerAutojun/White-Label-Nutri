@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block titulo %}Ajuda — {{ instancia_nome }}{% endblock %}
+{% block conteudo %}
+<h1 class="h3 mb-4">Dúvidas frequentes</h1>
+
+<div class="accordion" id="ajudaAccordion">
+  {% for item in perguntas %}
+  <div class="accordion-item">
+    <h2 class="accordion-header">
+      <button class="accordion-button {% if not forloop.first %}collapsed{% endif %}" type="button"
+              data-bs-toggle="collapse" data-bs-target="#pergunta{{ forloop.counter }}"
+              aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}"
+              aria-controls="pergunta{{ forloop.counter }}">
+        {{ item.pergunta }}
+      </button>
+    </h2>
+    <div id="pergunta{{ forloop.counter }}"
+         class="accordion-collapse collapse {% if forloop.first %}show{% endif %}"
+         data-bs-parent="#ajudaAccordion">
+      <div class="accordion-body">
+        {% for paragrafo in item.resposta %}<p>{{ paragrafo }}</p>{% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

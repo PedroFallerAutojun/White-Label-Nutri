@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% load static %}
+{% block titulo %}{{ fichaAtual.nomeFicha }} — {{ instancia_nome }}{% endblock %}
+{% block conteudo %}
+
+<nav aria-label="Trilha" class="mb-2">
+  <ol class="breadcrumb small">
+    <li class="breadcrumb-item"><a href="{% url 'listaFichas' %}">Fichas</a></li>
+    <li class="breadcrumb-item active" aria-current="page">{{ fichaAtual.nomeFicha }}</li>
+  </ol>
+</nav>
+
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ fichaAtual.nomeFicha }}</h1>
+    <p class="text-secondary mb-0">
+      Cliente: <strong>{{ fichaAtual.cliente }}</strong> ·
+      criada por {{ fichaAtual.autor.nome }} em {{ fichaAtual.dataCriacao|date:"d/m/Y" }}
+      {% if fichaAtual.finalizada %}
+        <span class="badge text-bg-success ms-2">Finalizada</span>
+      {% else %}
+        <span class="badge text-bg-secondary ms-2">Em edição</span>
+      {% endif %}
+    </p>
+  </div>
+  <div class="d-flex gap-2">
+    <form method="post" action="{% url 'atualizarFinalizada' pk=fichaAtual.pk %}">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-outline-secondary btn-sm">
+        {% if fichaAtual.finalizada %}Reabrir ficha{% else %}Marcar como finalizada{% endif %}
+      </button>
+    </form>
+    <button type="button" id="botaoCopiar" class="btn btn-sm text-white"
+            style="background-color: var(--cor-primaria);"
+            data-rotulo-copiar aria-live="polite">Copiar conteúdo</button>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-12 col-lg-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <h2 class="h6 text-secondary text-uppercase">Pesos</h2>
+        <dl class="row mb-0 small">
+          <dt class="col-7 fw-normal text-secondary">Peso de preparação</dt>
+          <dd class="col-5 text-end">{{ fichaAtual.pesoLiquidoPreparacao|floatformat:"-2" }} g</dd>
+          <dt class="col-7 fw-normal text-secondary">Peso total</dt>
+          <dd class="col-5 text-end">{{ fichaAtual.pesoTotal|floatformat:"-2" }} g</dd>
+          <dt class="col-7 fw-normal text-secondary">Porção (cliente)</dt>
+          <dd class="col-5 text-end">{{ fichaAtual.pesoPorcao|floatformat:"-2" }} g</dd>
+          <dt class="col-7 fw-normal text-secondary">Porção (Anvisa)</dt>
+          <dd class="col-5 text-end">{{ fichaAtual.pesoAnvisa|floatformat:"-2" }} g</dd>
+          <dt class="col-7 fw-normal text-secondary">Número de porções</dt>
+          <dd class="col-5 text-end">{{ numPorcoes }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-lg-8">
+    <div class="card h-100">
+      <div class="card-body">
+        <h2 class="h6 text-secondary text-uppercase">Etapas da ficha</h2>
+        <div class="d-flex flex-wrap gap-2">
+          <a class="btn btn-outline-secondary btn-sm" href="{% url 'editarFicha1' fichaAtual.pk %}">1. Dados base</a>
+          <a class="btn btn-outline-secondary btn-sm" href="{% url 'editarFicha2' fichaAtual.pk %}">2. Receita</a>
+          <a class="btn btn-outline-secondary btn-sm" href="{% url 'editarFicha3' fichaAtual.pk %}">3. Tabela</a>
+        </div>
+        <hr>
+        <form method="post" action="{% url 'deletarFicha' fichaAtual.pk %}"
+              onsubmit="return confirm('Excluir a ficha “{{ fichaAtual.nomeFicha|escapejs }}”? Esta ação não pode ser desfeita.');">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-outline-danger btn-sm">Excluir ficha</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ------- Bloco copiável: estrutura preservada do original (cola no Google Docs) ------- #}
+<div id="conteudo-para-copiar">
+
+  <h2 class="h6 text-secondary text-uppercase">Modelo de tabela vertical</h2>
+  <div class="table-responsive mb-4">
+    <table class="rotulo-vertical">
+      <tr>
+        <td colspan="4" class="rotulo-cabecalho">
+          <strong>INFORMAÇÃO NUTRICIONAL</strong>
+          <hr class="linha-cabeca1">
+          <div class="text-start">
+            Porções por embalagem: {{ numPorcoesExibicao }}<br>
+            Porção: {{ pesoAnvisaSemZero }}g ({{ fichaAtual.medCaseiraPorcao }})
+          </div>
+          <hr class="linha-cabeca2">
+        </td>
+      </tr>
+      <tr>
+        <td class="primeira-coluna">ㅤ</td>
+        <td><b>100g</b></td>
+        <td><b>{{ pesoAnvisaSemZero }}g</b></td>
+        <td><b>%VD*</b></td>
+      </tr>
+      {% for linha in linhas %}
+      <tr>
+        <td class="primeira-coluna{% if linha.0 in linhasIndentadas %} indentado{% endif %}">
+          {{ linha.0 }}{% if linha|length > 3 %} ({{ linha.3 }}){% endif %}
+        </td>
+        <td>{% if linha|length > 4 %}{{ linha.4 }}{% endif %}</td>
+        <td>{{ linha.1 }}</td>
+        <td>{{ linha.2 }}</td>
+      </tr>
+      {% endfor %}
+      <tr>
+        <td colspan="4" class="rotulo-nota">*Percentual de valores diários fornecidos pela porção.</td>
+      </tr>
+    </table>
+  </div>
+
+  <p class="rotulo-texto">Ingredientes: {{ ordemIngredientes }}</p>
+  {% if tabelaAtual.informacoesComplementares %}
+    <p class="rotulo-texto"><b class="alergicos">ALÉRGICOS: {{ tabelaAtual.informacoesComplementares }}</b></p>
+  {% endif %}
+  {% if lupa_img %}
+    <div class="text-start mb-4">
+      <img class="imagem-lupa-copia" style="margin-top: 15px; width:140px;"
+           src="data:image/png;base64,{{ lupa_img }}" alt="Rotulagem frontal: alto em">
+    </div>
+  {% endif %}
+
+  <h2 class="h6 text-secondary text-uppercase">Modelo de tabela linear</h2>
+  <div class="table-responsive mb-4">
+    <table class="rotulo-linear">
+      <tr>
+        <td>
+          <div class="text-start">
+            <strong>INFORMAÇÃO NUTRICIONAL</strong>
+            <hr class="linha-cabeca1">
+            Porções por embalagem: {{ numPorcoesExibicao }} <b>•</b>
+            Porção: {{ pesoAnvisaSemZero }}g ({{ fichaAtual.medCaseiraPorcao }})
+            <hr class="linha-cabeca2">
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <p class="rotulo-texto mb-0">Por 100g (<b>{{ pesoAnvisaSemZero }}g</b>, %VD*):
+            {% for linha in linhas %}
+              {% if linha|length > 3 %}
+                {{ linha.0 }} <span class="sem-quebra">{{ linha.4 }}{{ linha.3 }}</span>
+                (<b>{{ linha.1 }}{{ linha.3 }}</b>{% if linha.2 != "" %}, {{ linha.2 }}%{% endif %})
+                {% if linha.0 == "Carboidratos totais" %}, dos quais
+                {% elif linha.0 == "Gorduras Totais" %}, das quais
+                {% elif forloop.last %}.{% else %}, <b>•</b>{% endif %}
+              {% endif %}
+            {% endfor %}
+          </p>
+        </td>
+      </tr>
+      <tr>
+        <td class="rotulo-nota">*Percentual de valores diários fornecidos pela porção.</td>
+      </tr>
+    </table>
+  </div>
+
+  <p class="rotulo-texto">Ingredientes: {{ ordemIngredientes }}</p>
+  {% if tabelaAtual.informacoesComplementares %}
+    <p class="rotulo-texto"><b class="alergicos">ALÉRGICOS: {{ tabelaAtual.informacoesComplementares }}</b></p>
+  {% endif %}
+  {% if lupa_img %}
+    <div class="text-start">
+      <img class="imagem-lupa-copia" style="margin-top: 15px; width:140px;"
+           src="data:image/png;base64,{{ lupa_img }}" alt="Rotulagem frontal: alto em">
+    </div>
+  {% endif %}
+</div>
+
+<script src="{% static 'js/copiar-rotulo.js' %}"></script>
+{% endblock %}
