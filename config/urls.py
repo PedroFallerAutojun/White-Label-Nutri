@@ -10,6 +10,12 @@ urlpatterns = [
     path("", views.login_user, name="loginUser"),
     path("loginUser", views.login_user, name="loginUser"),
     path("logoutUser", views.logout_user, name="logoutUser"),
+    # Membros
+    path("registrarMembro", views.registrar_membro, name="registrarMembro"),
+    path("listaMembros", views.lista_membros, name="listaMembros"),
+    path("mudaChave", views.muda_chave, name="mudaChave"),
+    path("trocaSenha", views.troca_senha, name="trocaSenha"),
+    path("deletaMembro", views.deleta_membro, name="deletaMembro"),
     # Fichas
     path("listaFichas", views.lista_fichas, name="listaFichas"),
     path("registrarFicha1", views.registrar_ficha_base, name="registrarFicha1"),

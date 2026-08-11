@@ -11,9 +11,12 @@ Regras de negócio: ver docs/BUSINESS_RULES.md (BR-XXX citadas no código).
 import csv
 import io
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib.auth.models import Group, User
+from django.db import transaction
 from django.db.models import Q
 from django.db.models.functions import Lower
 from django.shortcuts import get_object_or_404, redirect, render
@@ -24,16 +27,27 @@ from apps.fichas.dominio import rotulo
 from apps.fichas.dominio.lupas_img import LUPAS_BASE64
 from apps.fichas.dominio.nutrientes import NUTRIENTES, POR_CHAVE
 from apps.fichas.forms import (
+    ApagarMembroForm,
+    ChaveForm,
     FichaFiltroForm,
     FichaFormBase,
     FormInformacoesComplementares,
     IngredienteFiltroForm,
     IngredienteForm,
     LoginForm,
+    MembroForm,
+    MudarSenhaForm,
     NutrienteForm,
     ReceitaForm,
 )
-from apps.fichas.models import Ficha, Ficha_Ingrediente, Ingrediente, Membro, Nutriente
+from apps.fichas.models import (
+    Chave,
+    Ficha,
+    Ficha_Ingrediente,
+    Ingrediente,
+    Membro,
+    Nutriente,
+)
 from apps.plataforma.models import ConfiguracaoInstancia
 
 # ---------------------------------------------------------------- autenticação
@@ -315,6 +329,117 @@ def deletar_ficha(request, pk):
     ficha.delete()
     messages.success(request, f'Ficha "{nome}" excluída.')
     return redirect("listaFichas")
+
+
+# --------------------------------------------------------------------- membros
+
+
+def eh_administrador(user) -> bool:
+    """Papel administrativo da instância (substitui username == 'admin' — B10)."""
+    return user.is_authenticated and (
+        user.is_superuser or user.groups.filter(name=settings.GRUPO_ADMINISTRADORES).exists()
+    )
+
+
+administrador_requerido = user_passes_test(eh_administrador, login_url="loginUser")
+
+
+def registrar_membro(request):
+    """BR-024 — auto-cadastro protegido pela chave da instância."""
+    logout(request)  # o original desloga antes de exibir o formulário
+    form = MembroForm(request.POST or None)
+    if form.is_valid():
+        with transaction.atomic():
+            usuario = User.objects.create_user(
+                form.cleaned_data["nome"],
+                password=form.cleaned_data["senha1"],
+                email=form.cleaned_data["email"],
+            )
+            membro = form.save(commit=False)
+            membro.usuario = usuario
+            membro.save()
+        messages.success(
+            request, "Cadastro realizado com sucesso. Entre com seu nome e senha."
+        )
+        return redirect("loginUser")
+    return render(request, "membro_form.html", {"form": form})
+
+
+@login_required
+def lista_membros(request):
+    admin = eh_administrador(request.user)
+    chave = Chave.objects.last() if admin else None
+    return render(
+        request,
+        "membros_registrados.html",
+        {
+            "membros": Membro.objects.select_related("usuario").order_by(Lower("nome")),
+            "ehAdmin": admin,
+            "chave": chave.key if chave else None,
+            "formChave": ChaveForm(),
+            "formTrocaSenha": MudarSenhaForm(),
+            "formApagaMembro": ApagarMembroForm(),
+        },
+    )
+
+
+@administrador_requerido
+@require_POST
+def muda_chave(request):
+    """BR-025 — trocar a chave insere uma nova linha (histórico preservado)."""
+    form = ChaveForm(request.POST)
+    if form.is_valid():
+        form.save()
+        messages.success(request, "Chave alterada com sucesso!")
+    else:
+        messages.error(request, "A chave não pôde ser alterada.")
+    return redirect("listaMembros")
+
+
+@administrador_requerido
+@require_POST
+def troca_senha(request):
+    """BR-025 — administrador redefine a senha de qualquer membro."""
+    form = MudarSenhaForm(request.POST)
+    if form.is_valid():
+        usuario = form.cleaned_data["usuario"]
+        usuario.set_password(form.cleaned_data["nova_senha"])
+        usuario.save()
+        messages.success(request, f"Senha de {usuario.username} alterada com sucesso!")
+    else:
+        messages.error(request, f"A senha não pôde ser alterada: {_erros(form)}")
+    return redirect("listaMembros")
+
+
+@administrador_requerido
+@require_POST
+def deleta_membro(request):
+    """BR-026 — exclui o membro transferindo fichas e ingredientes."""
+    form = ApagarMembroForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, f"O membro não pôde ser excluído: {_erros(form)}")
+        return redirect("listaMembros")
+
+    excluido = form.cleaned_data["membroExcluido"]
+    destino = form.cleaned_data["membroDestino"]
+    with transaction.atomic():
+        ingredientes = Ingrediente.objects.filter(autorIng=excluido).update(autorIng=destino)
+        fichas = Ficha.objects.filter(autor=excluido).update(autor=destino)
+        excluido.usuario.delete()  # CASCADE remove o Membro
+    messages.success(
+        request,
+        f"Transferidos {fichas} fichas e {ingredientes} ingredientes de "
+        f"{excluido.nome} para {destino.nome}!",
+    )
+    return redirect("listaMembros")
+
+
+def _erros(form) -> str:
+    partes = []
+    for campo, erros in form.errors.items():
+        rotulo = form.fields[campo].label if campo in form.fields else campo
+        partes.append(f"{rotulo}: {erros[0]}")
+    return "; ".join(partes)
 
 
 # ---------------------------------------------------------------- ingredientes

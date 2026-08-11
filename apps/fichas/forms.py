@@ -1,8 +1,18 @@
 """Formulários — portados do original com os mesmos campos, labels e validações."""
 from django import forms
+from django.contrib.auth.models import User
+from django.contrib.auth.password_validation import validate_password
 from django.db.models.functions import Lower
 
-from apps.fichas.models import Ficha, Ficha_Ingrediente, Ingrediente, Membro, Nutriente, Tabela
+from apps.fichas.models import (
+    Chave,
+    Ficha,
+    Ficha_Ingrediente,
+    Ingrediente,
+    Membro,
+    Nutriente,
+    Tabela,
+)
 
 
 def aplicar_classes_bootstrap(form):
@@ -154,3 +164,97 @@ class IngredienteFiltroForm(forms.Form):
 
 class UploadForm(forms.Form):
     files = forms.FileField(label="Arquivo TXT (separado por TAB)")
+
+
+class MembroForm(forms.ModelForm):
+    """Auto-cadastro de membro protegido pela chave da instância (BR-024)."""
+
+    chave = forms.CharField(label="Chave de cadastro", required=True, widget=forms.PasswordInput)
+    senha1 = forms.CharField(label="Senha", required=True, widget=forms.PasswordInput)
+    senha2 = forms.CharField(label="Confirmar senha", required=True, widget=forms.PasswordInput)
+
+    class Meta:
+        model = Membro
+        fields = ["nome", "semestre", "email"]
+        labels = {
+            "nome": "Nome de usuário",
+            "semestre": "Semestre de entrada",
+            "email": "E-mail",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        aplicar_classes_bootstrap(self)
+
+    def clean(self):
+        dados = super().clean()
+        if dados.get("nome") and User.objects.filter(username=dados["nome"]).exists():
+            self.add_error(
+                "nome",
+                "Já existe um usuário com esse nome. Não foi possível realizar o cadastro.",
+            )
+        if dados.get("senha1") and dados.get("senha2") and dados["senha1"] != dados["senha2"]:
+            self.add_error(
+                "senha2", "As senhas não conferem. Não foi possível realizar o cadastro."
+            )
+        chave_atual = Chave.objects.last()
+        if not chave_atual or dados.get("chave") != chave_atual.key:
+            self.add_error("chave", "Chave incorreta. Não foi possível realizar o cadastro.")
+        return dados
+
+
+class ChaveForm(forms.ModelForm):
+    class Meta:
+        model = Chave
+        fields = ["key"]
+        labels = {"key": "Nova chave"}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        aplicar_classes_bootstrap(self)
+
+
+class MudarSenhaForm(forms.Form):
+    """Troca de senha de qualquer membro (administradores da instância)."""
+
+    usuario = forms.ModelChoiceField(label="Membro", required=True, queryset=User.objects.none())
+    nova_senha = forms.CharField(label="Nova senha", required=True, widget=forms.PasswordInput)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["usuario"].queryset = User.objects.all().order_by(Lower("username"))
+        aplicar_classes_bootstrap(self)
+
+    def clean_nova_senha(self):
+        senha = self.cleaned_data["nova_senha"]
+        validate_password(senha)
+        return senha
+
+
+class ApagarMembroForm(forms.Form):
+    """Exclusão de membro com transferência de autoria (BR-026)."""
+
+    membroExcluido = forms.ModelChoiceField(
+        label="Excluir membro", required=True, queryset=Membro.objects.none()
+    )
+    membroDestino = forms.ModelChoiceField(
+        label="Transferir autoria para",
+        required=True,
+        queryset=Membro.objects.none(),
+        help_text="Inclui as fichas e os ingredientes criados por ele",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        membros = Membro.objects.all().order_by(Lower("nome"))
+        self.fields["membroExcluido"].queryset = membros
+        self.fields["membroDestino"].queryset = membros
+        aplicar_classes_bootstrap(self)
+
+    def clean(self):
+        dados = super().clean()
+        if dados.get("membroExcluido") and dados.get("membroExcluido") == dados.get(
+            "membroDestino"
+        ):
+            self.add_error("membroDestino", "Os dois membros precisam ser distintos")
+        return dados

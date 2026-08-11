@@ -16,14 +16,27 @@ import pytest
 def django_db_setup(django_db_setup, django_db_blocker):
     """Aponta a sessão de testes para a cópia do backup, quando solicitado.
 
-    Não cria nem destrói o banco indicado — ele é uma cópia restaurada e os
-    testes que o usam são somente leitura.
+    O nome original é restaurado antes do teardown do pytest-django — sem isso,
+    a rotina de destruição do banco de teste apagaria a cópia do backup
+    (D-002: a cópia é insumo de validação e nunca deve ser destruída).
     """
     banco = os.environ.get("PARIDADE_DB")
-    if banco:
-        from django.db import connections
+    if not banco:
+        yield
+        return
 
+    from django.db import connections
+
+    originais = {}
+    for conexao in connections.all():
+        originais[conexao.alias] = conexao.settings_dict["NAME"]
+        conexao.close()
+        conexao.settings_dict["NAME"] = banco
+    try:
+        yield
+    finally:
         for conexao in connections.all():
             conexao.close()
-            conexao.settings_dict["NAME"] = banco
-    yield
+            conexao.settings_dict["NAME"] = originais.get(
+                conexao.alias, conexao.settings_dict["NAME"]
+            )

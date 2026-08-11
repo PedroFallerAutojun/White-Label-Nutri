@@ -22,10 +22,31 @@ pytest
 PARIDADE_DB=nutri_paridade pytest tests/integration/test_paridade_rotulo_e2e.py
 ```
 
+## Provisionar uma empresa nova
+```bash
+createdb nutri_acme
+DATABASE_URL=postgres://.../nutri_acme python manage.py migrate
+DATABASE_URL=postgres://.../nutri_acme python manage.py bootstrap_instancia \
+    --nome "Nutri Acme" --admin ana --email ana@acme.com --chave ACME-2026
+```
+
+## Migrar a instância Nutri Jr
+Restaure uma cópia do `BackupNutriJR` (PostgreSQL 17+), então:
+```bash
+python manage.py migrate --fake-initial
+python manage.py sanear_backup --dry-run   # relatório
+python manage.py sanear_backup             # aplica
+```
+Detalhes em `docs/MIGRATION.md`.
+
 ## Status
 Etapas concluídas: E1 (fundação), E2 (cálculo e rótulo com paridade validada),
-E3/E4 (telas do wizard, ingredientes, upload e rótulo final).
-Paridade com o sistema original: **1.557/1.557 rótulos idênticos**.
+E3/E4 (telas do wizard, ingredientes, upload e rótulo final), E5 (membros e
+administração), E6 (saneamento e provisionamento de instâncias).
+
+Paridade com o sistema original: **1.557/1.557 rótulos idênticos**; após o
+saneamento, **as 1.574 fichas do acervo abrem sem erro** (17 davam 500 no original).
+Suíte: 99 testes.
 
 ## Documentação
 - `docs/REVERSE_ENGINEERING.md` — engenharia reversa do sistema original

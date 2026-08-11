@@ -21,7 +21,7 @@ Nada daqui deve ser implementado automaticamente. Prioridade do projeto:
 | B12 | salvarReceita não recalcula a tabela | views.py:594 | Tabela desatualizada até o próximo recálculo |
 | B13 | Editar ingrediente não recalcula fichas que o usam | views.py:1302 | Fichas antigas ficam defasadas (pode ser intencional — congelar fichas emitidas?) [VALIDAR] |
 | B14 | Reset de senha (auth.urls) sem backend de e-mail | settings | Link "esqueci a senha" não funciona |
-| B15 | `int(pesoAnvisa or pesoPorcao)` com ambos NULL crasha fichaX | views.py (pesoAnvisaSemZero); ficha 1273 no backup | **CONFIRMADO em runtime** (TypeError) → 500 |
+| B15 | `int(pesoAnvisa or pesoPorcao)` sem peso válido crasha fichaX | views.py (pesoAnvisaSemZero); 11 fichas no backup (ex.: 1273, com pesoAnvisa = 0) | **CONFIRMADO em runtime** (TypeError) → 500 |
 | B16 | `attTabela` crasha com dados nulos (`float * None`) | 2 fichas do backup falham no recálculo | **CONFIRMADO em runtime** — novo cálculo trata None como 0 |
 | B17 | Ordem dos ingredientes do rótulo é indefinida entre itens de MESMO peso (ORDER BY sem desempate) | views.py ordenarIngredientesPorQuantidade; 251/1557 fichas têm empates | Nova versão usa desempate estável (ordem de inserção); paridade validada por equivalência de grupos |
 

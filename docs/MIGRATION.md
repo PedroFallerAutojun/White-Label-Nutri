@@ -33,12 +33,40 @@ Executar UMA vez após restaurar, via comando de management `sanear_backup`:
 | S1 | Criar `Tabela` para as 16 fichas órfãs (IDs 1138–1151, 2733, 2734) com pk = ficha.pk e recalcular SOMENTE essas | B4 — hoje crasham (confirmado: DoesNotExist) | sim (delete) |
 | S2 | Colocar o usuário `admin` no grupo "administradores" | modelo de permissão novo | sim |
 | S3 | Sinalizar (não alterar) fichas com dataCriacao < 2019 (IDs com anos 2000/2006) | dados suspeitos | n/a |
-| S4 | Sinalizar fichas com `pesoAnvisa` e `pesoPorcao` nulos (ex.: 1273 — crasha no original, B15) | a view nova exibirá aviso em vez de 500 | n/a |
+| S4 | Sinalizar fichas sem peso de porção — nulo **ou zero** (11 fichas no backup: 272, 771, 774, 1141, 1273, 1415, 1423, 1486, 4659, 5736, …) | B15: exibem “0 porções” em vez de erro 500 | n/a |
 | S5 | NÃO recalcular tabelas existentes | 45/50 divergem ao recalcular — os valores gravados são os rótulos emitidos (fonte de verdade histórica) | — |
 | S6 | (opcional) manter apenas a última linha de `fichas_chave` | higiene | sim |
 | S7 | Criar `ConfiguracaoInstancia` da instância Nutri Jr (`nome_exibicao="Nutri Jr"`, `ano_corte_ingredientes=2024`, D-010) | D-009 — instância por empresa | sim |
 
-Log de execução gravado em tabela própria (`saneamento_log`) com timestamp e diff por ação.
+O comando `sanear_backup` implementa S1–S7, relata cada ação no terminal e aceita
+`--dry-run` para simular sem gravar. É idempotente (a segunda execução é um no-op).
+
+```bash
+python manage.py sanear_backup --dry-run    # relatório
+python manage.py sanear_backup             # aplica
+```
+
+**Execução validada sobre a cópia do backup (2026-08-11):**
+- S1: criadas as 16 tabelas faltantes (fichas 1138–1151, 2733, 2734);
+- S2: usuário `admin` promovido ao grupo `administradores`;
+- S3: 2 fichas com data anterior a 2019 sinalizadas (#98 em 2000, #5934 em 2006) — não alteradas;
+- S4: 11 fichas sem peso de porção sinalizadas;
+- S7: configuração da instância criada (Nutri Jr, corte 2024).
+
+Resultado: **as 1.574 fichas do acervo abrem sem erro** (no original, 17 davam 500) e a
+paridade dos rótulos permanece 1.557/1.557 — o saneamento não altera nenhum rótulo existente.
+
+## 3b. Provisionar uma empresa nova (D-009)
+
+```bash
+createdb nutri_acme && DATABASE_URL=... python manage.py migrate
+DATABASE_URL=... python manage.py bootstrap_instancia \
+    --nome "Nutri Acme" --admin ana --email ana@acme.com --chave ACME-2026
+```
+Cria a configuração white-label, o grupo de administradores, o primeiro administrador
+(com Membro correspondente) e a chave de cadastro. A senha vem de `--senha`, da variável
+`INSTANCIA_ADMIN_SENHA` ou é solicitada interativamente. Recusa rodar se a instância já
+estiver configurada.
 
 ## 4. Regra de ouro
 
