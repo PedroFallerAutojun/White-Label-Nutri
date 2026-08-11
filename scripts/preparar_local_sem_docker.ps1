@@ -47,6 +47,19 @@ function Achar-Pasta-Postgres {
     return $null
 }
 
+function Testar-Conexao($usuario, $porta) {
+    # -h 127.0.0.1 explicito: sem isso o libpq tenta "localhost", que pode
+    # resolver para ::1 e cair em outra regra do pg_hba.conf.
+    & psql -U $usuario -h 127.0.0.1 -p $porta -d postgres -c "SELECT 1" *> $null
+    return ($LASTEXITCODE -eq 0)
+}
+
+function Pedir-Senha($usuario) {
+    $segura = Read-Host "Senha do usuario '$usuario' do PostgreSQL" -AsSecureString
+    return [Runtime.InteropServices.Marshal]::PtrToStringAuto(
+        [Runtime.InteropServices.Marshal]::SecureStringToBSTR($segura))
+}
+
 # ---------------------------------------------------------------- requisitos
 
 $python = Achar-Python
@@ -114,11 +127,32 @@ if ($LASTEXITCODE -ne 0) { throw "falha ao instalar as dependencias" }
 
 # --------------------------------------------------------------- banco
 
-if (-not $env:PGPASSWORD) {
-    $segura = Read-Host "Senha do usuario '$UsuarioDb' do PostgreSQL" -AsSecureString
-    $env:PGPASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
-        [Runtime.InteropServices.Marshal]::SecureStringToBSTR($segura))
+# A senha e sempre VALIDADA contra o servidor. Uma PGPASSWORD herdada da sessao
+# (de outro script ou de uma configuracao antiga) nao e aceita sem teste: era o
+# que fazia o script falhar sem nem pedir a senha.
+if ($env:PGPASSWORD) {
+    Write-Host "==> testando a senha ja presente em PGPASSWORD" -ForegroundColor Cyan
+    if (-not (Testar-Conexao $UsuarioDb $Porta)) {
+        Write-Host "   a senha em PGPASSWORD nao serve; vou pedir a correta." -ForegroundColor Yellow
+        Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue
+    }
 }
+
+$tentativas = 0
+while (-not $env:PGPASSWORD -or -not (Testar-Conexao $UsuarioDb $Porta)) {
+    $tentativas++
+    if ($tentativas -gt 3) {
+        Write-Host ""
+        Write-Host "Nao foi possivel autenticar no PostgreSQL." -ForegroundColor Red
+        Write-Host "Verifique o servico (Get-Service *postgres*), a porta (-Porta) e a senha."
+        Write-Host "Para redefinir a senha, veja a secao 'Senha do PostgreSQL' no README."
+        exit 1
+    }
+    $env:PGPASSWORD = Pedir-Senha $UsuarioDb
+    if (Testar-Conexao $UsuarioDb $Porta) { break }
+    Write-Host "   senha incorreta." -ForegroundColor Yellow
+}
+Write-Host "Conexao com o PostgreSQL confirmada." -ForegroundColor Green
 
 # A senha vai codificada na URL: simbolos como @ : / # quebrariam a conexao.
 $senhaUrl = [uri]::EscapeDataString($env:PGPASSWORD)
@@ -128,8 +162,8 @@ $env:DJANGO_SETTINGS_MODULE = "config.settings.dev"
 
 if ($Backup) {
     Write-Host "==> recriando o banco '$Banco'" -ForegroundColor Cyan
-    & dropdb -U $UsuarioDb -p $Porta --if-exists --force $Banco
-    & createdb -U $UsuarioDb -p $Porta $Banco
+    & dropdb -U $UsuarioDb -h 127.0.0.1 -p $Porta --if-exists --force $Banco
+    & createdb -U $UsuarioDb -h 127.0.0.1 -p $Porta $Banco
     if ($LASTEXITCODE -ne 0) {
         Write-Host ""
         Write-Host "Nao foi possivel criar o banco." -ForegroundColor Red
@@ -142,7 +176,7 @@ if ($Backup) {
     Write-Host "==> restaurando o backup (o arquivo original nao e alterado)" -ForegroundColor Cyan
     # pg_restore relata avisos benignos de propriedade/permissao; o -e nao e usado
     # de proposito para que a restauracao continue apesar deles.
-    & pg_restore --no-owner --no-privileges -U $UsuarioDb -p $Porta -d $Banco $Backup
+    & pg_restore --no-owner --no-privileges -U $UsuarioDb -h 127.0.0.1 -p $Porta -d $Banco $Backup
     Write-Host "   (avisos de owner/ACL acima sao esperados e inofensivos)"
 
     Write-Host "==> reconhecendo o schema legado" -ForegroundColor Cyan
@@ -158,7 +192,7 @@ if ($Backup) {
     Write-Host "Os usuarios sao os reais do backup. Para criar um acesso local:"
     Write-Host "  .\.venv\Scripts\python.exe manage.py createsuperuser"
 } else {
-    & createdb -U $UsuarioDb -p $Porta $Banco 2>$null
+    & createdb -U $UsuarioDb -h 127.0.0.1 -p $Porta $Banco 2>$null
     Write-Host "==> aplicando as migrations" -ForegroundColor Cyan
     & $py manage.py migrate --noinput
 

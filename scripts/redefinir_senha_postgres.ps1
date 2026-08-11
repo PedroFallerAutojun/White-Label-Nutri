@@ -197,9 +197,11 @@ finally {
 
 Write-Host "==> testando a nova senha" -ForegroundColor Cyan
 $env:PGPASSWORD = $NovaSenha
-& $psql -U $Usuario -d postgres -c "SELECT version();" *> $null
+& $psql -U $Usuario -h 127.0.0.1 -d postgres -c "SELECT version();" *> $null
 $ok = ($LASTEXITCODE -eq 0)
-$env:PGPASSWORD = $null
+# Remove-Item em vez de = $null: a variavel nao deve sobrar na sessao, senao
+# outros scripts a herdam e tentam autenticar com ela.
+Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue
 
 Write-Host ""
 if ($ok) {
