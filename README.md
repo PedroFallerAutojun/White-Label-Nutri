@@ -9,20 +9,41 @@ Django 5.2 LTS · PostgreSQL · Bootstrap 5 · pytest — detalhes em `docs/NEW_
 
 ## Rodando com Docker (caminho mais curto)
 
-Requisitos: Docker e Docker Compose.
+Requisitos: **Docker** e **Docker Compose v2** (`docker compose version` deve responder).
+
+Primeira vez — clonar o repositório e entrar na branch:
 
 ```bash
-# instância nova, vazia (cria admin e chave de cadastro)
-./scripts/preparar_local.sh
+git clone https://github.com/PedroFallerAutojun/White-Label-Nutri.git
+cd White-Label-Nutri
+git checkout claude/nutri-jr-reverse-engineering-kglfb4
+```
 
-# ou restaurando o acervo da Nutri Jr a partir de uma cópia do backup
-cp /caminho/para/BackupNutriJR backups/
+**Instância nova, vazia** (cria administrador e chave de cadastro):
+
+```bash
+./scripts/preparar_local.sh
+```
+
+**Com o acervo da Nutri Jr**, a partir de uma cópia do backup — o arquivo está
+versionado no repositório do sistema original:
+
+```bash
+git clone https://github.com/PedroFallerAutojun/Nutri_Jr.git ../Nutri_Jr
+cp ../Nutri_Jr/BackupNutriJR backups/
 ./scripts/preparar_local.sh backups/BackupNutriJR
 ```
 
-Depois: <http://localhost:8000>. Numa instância nova, o script cria o administrador
-`admin` com senha `admin-local-123456` e a chave de cadastro `CHAVE-LOCAL`
-(personalizáveis por variáveis de ambiente — veja o script).
+Depois: <http://localhost:8000>. A primeira execução baixa as imagens e instala as
+dependências (alguns minutos); as seguintes são rápidas.
+
+Numa instância nova, o script cria o administrador `admin` com senha
+`admin-local-123456` e a chave de cadastro `CHAVE-LOCAL` (personalizáveis por
+variáveis de ambiente — veja o script). Ao restaurar o acervo legado, os usuários
+são os reais do backup; para criar um acesso local use
+`docker compose exec web python manage.py createsuperuser`.
+
+Se a porta 8000 ou 5433 estiver ocupada: `PORTA_WEB=8080 PORTA_DB=5544 ./scripts/preparar_local.sh`.
 
 O PostgreSQL do compose é a **versão 17** de propósito: o `BackupNutriJR` foi gerado
 com pg_dump 17 e só é restaurável por um pg_restore 17+. A pasta `backups/` é montada
