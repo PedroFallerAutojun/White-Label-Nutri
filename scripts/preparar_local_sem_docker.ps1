@@ -18,14 +18,58 @@ param(
 $ErrorActionPreference = "Stop"
 Set-Location (Join-Path $PSScriptRoot "..")
 
+# ------------------------------------------------------------------- funcoes
+
+function Executar {
+    # Executa um programa externo e devolve o codigo de saida.
+    #
+    # Necessario porque, com $ErrorActionPreference = "Stop", qualquer texto que um
+    # programa escreva em stderr vira erro FATAL no PowerShell, mesmo redirecionado.
+    # psql e pg_restore usam stderr para avisos normais, o que derrubava o script
+    # mesmo quando tudo estava correto.
+    param(
+        [Parameter(Mandatory = $true)][string]$Programa,
+        [string[]]$Argumentos = @(),
+        [switch]$Silencioso
+    )
+
+    $anterior = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        if ($Silencioso) {
+            & $Programa @Argumentos 2>&1 | Out-Null
+        } else {
+            & $Programa @Argumentos 2>&1 | ForEach-Object { Write-Host "   $_" }
+        }
+        return $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $anterior
+    }
+}
+
+function Capturar {
+    # Igual a Executar, mas devolve a saida do programa em vez do codigo.
+    param(
+        [Parameter(Mandatory = $true)][string]$Programa,
+        [string[]]$Argumentos = @()
+    )
+    $anterior = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $saida = (& $Programa @Argumentos 2>$null)
+    } finally {
+        $ErrorActionPreference = $anterior
+    }
+    if ($LASTEXITCODE -ne 0) { return $null }
+    return ("$saida").Trim()
+}
+
 function Achar-Python {
     foreach ($candidato in @("py", "python", "python3")) {
-        $caminho = Get-Command $candidato -ErrorAction SilentlyContinue
-        if (-not $caminho) { continue }
-        $versao = & $candidato -c "import sys; print('%d.%d' % sys.version_info[:2])" 2>$null
-        if ($LASTEXITCODE -eq 0 -and [version]$versao -ge [version]"3.12") {
-            return $candidato
-        }
+        if (-not (Get-Command $candidato -ErrorAction SilentlyContinue)) { continue }
+        $versao = Capturar -Programa $candidato -Argumentos @(
+            "-c", "import sys; print('%d.%d' % sys.version_info[:2])")
+        if ($versao -and [version]$versao -ge [version]"3.12") { return $candidato }
     }
     return $null
 }
@@ -33,8 +77,7 @@ function Achar-Python {
 function Achar-Pasta-Postgres {
     # Primeiro no PATH; depois nas pastas padrao de instalacao do Windows.
     if (Get-Command pg_restore -ErrorAction SilentlyContinue) { return "" }
-    $bases = @("$env:ProgramFiles\PostgreSQL", "${env:ProgramFiles(x86)}\PostgreSQL")
-    foreach ($base in $bases) {
+    foreach ($base in @("$env:ProgramFiles\PostgreSQL", "${env:ProgramFiles(x86)}\PostgreSQL")) {
         if (-not (Test-Path $base)) { continue }
         $versoes = Get-ChildItem $base -Directory |
             Where-Object { $_.Name -match '^\d+$' } |
@@ -48,12 +91,12 @@ function Achar-Pasta-Postgres {
 }
 
 function Testar-Conexao($usuario, $porta) {
-    # -h 127.0.0.1 explicito: sem isso o libpq tenta "localhost", que pode
-    # resolver para ::1 e cair em outra regra do pg_hba.conf.
-    # -w impede o prompt interativo: a saida esta redirecionada, e sem isso o
-    # script ficaria travado esperando uma senha que o usuario nao ve sendo pedida.
-    & psql -w -U $usuario -h 127.0.0.1 -p $porta -d postgres -c "SELECT 1" *> $null
-    return ($LASTEXITCODE -eq 0)
+    # -w impede o prompt interativo de senha: sem ele o script travaria em
+    # silencio, porque a saida esta suprimida.
+    $codigo = Executar -Programa "psql" -Silencioso -Argumentos @(
+        "-w", "-U", $usuario, "-h", "127.0.0.1", "-p", "$porta", "-d", "postgres",
+        "-c", "SELECT 1")
+    return ($codigo -eq 0)
 }
 
 function Pedir-Senha($usuario) {
@@ -62,7 +105,13 @@ function Pedir-Senha($usuario) {
         [Runtime.InteropServices.Marshal]::SecureStringToBSTR($segura))
 }
 
-# ---------------------------------------------------------------- requisitos
+function Consultar($usuario, $porta, $banco, $sql) {
+    return Capturar -Programa "psql" -Argumentos @(
+        "-w", "-At", "-U", $usuario, "-h", "127.0.0.1", "-p", "$porta", "-d", $banco,
+        "-c", $sql)
+}
+
+# --------------------------------------------------------------- requisitos
 
 $python = Achar-Python
 if (-not $python) {
@@ -92,8 +141,10 @@ if ($pastaPg -ne "") {
     Write-Host "PostgreSQL encontrado no PATH" -ForegroundColor Green
 }
 
-$versaoCliente = [int](((& psql --version) -replace '[^\d.]', '') -split '\.')[0]
+$textoVersao = Capturar -Programa "psql" -Argumentos @("--version")
+$versaoCliente = [int]((("$textoVersao") -replace '[^\d.]', '') -split '\.')[0]
 Write-Host "Cliente psql: versao $versaoCliente | porta escolhida: $Porta" -ForegroundColor Green
+
 if ($versaoCliente -lt 17 -and $Backup) {
     Write-Host ""
     Write-Host "Atencao: o cliente PostgreSQL e a versao $versaoCliente." -ForegroundColor Yellow
@@ -103,8 +154,7 @@ if ($versaoCliente -lt 17 -and $Backup) {
     Write-Host "Ela convivera com a instalacao atual, normalmente na porta 5433:"
     Write-Host "  .\scripts\preparar_local_sem_docker.ps1 backups\BackupNutriJR -Porta 5433"
     Write-Host ""
-    $resposta = Read-Host "Tentar mesmo assim? (s/N)"
-    if ($resposta -notmatch '^[sS]') { exit 1 }
+    if ((Read-Host "Tentar mesmo assim? (s/N)") -notmatch '^[sS]') { exit 1 }
 }
 
 if ($Backup -and -not (Test-Path $Backup)) {
@@ -113,35 +163,40 @@ if ($Backup -and -not (Test-Path $Backup)) {
     exit 1
 }
 
-# ------------------------------------------------------- ambiente virtual
+# ---------------------------------------------------------- ambiente virtual
 
 if (-not (Test-Path ".venv")) {
     Write-Host "==> criando o ambiente virtual" -ForegroundColor Cyan
-    & $python -m venv .venv
-    if ($LASTEXITCODE -ne 0) { throw "falha ao criar o ambiente virtual" }
+    if ((Executar -Programa $python -Argumentos @("-m", "venv", ".venv")) -ne 0) {
+        throw "falha ao criar o ambiente virtual"
+    }
 }
 $py = ".\.venv\Scripts\python.exe"
 
 Write-Host "==> instalando as dependencias" -ForegroundColor Cyan
-& $py -m pip install --quiet --upgrade pip
-& $py -m pip install --quiet -r requirements-dev.txt
-if ($LASTEXITCODE -ne 0) { throw "falha ao instalar as dependencias" }
+Executar -Programa $py -Silencioso -Argumentos @(
+    "-m", "pip", "install", "--quiet", "--upgrade", "pip") | Out-Null
+if ((Executar -Programa $py -Silencioso -Argumentos @(
+        "-m", "pip", "install", "--quiet", "-r", "requirements-dev.txt")) -ne 0) {
+    throw "falha ao instalar as dependencias"
+}
 
-# --------------------------------------------------------------- banco
+# ------------------------------------------------------------------ conexao
 
-# A senha e sempre VALIDADA contra o servidor. Uma PGPASSWORD herdada da sessao
-# (de outro script ou de uma configuracao antiga) nao e aceita sem teste: era o
-# que fazia o script falhar sem nem pedir a senha.
+# A senha e sempre VALIDADA contra o servidor: uma PGPASSWORD herdada da sessao
+# (de outro script ou de configuracao antiga) nao e aceita sem teste.
 if ($env:PGPASSWORD) {
-    Write-Host "==> testando a senha ja presente em PGPASSWORD" -ForegroundColor Cyan
-    if (-not (Testar-Conexao $UsuarioDb $Porta)) {
-        Write-Host "   a senha em PGPASSWORD nao serve; vou pedir a correta." -ForegroundColor Yellow
+    Write-Host "==> testando a senha presente em PGPASSWORD" -ForegroundColor Cyan
+    if (Testar-Conexao $UsuarioDb $Porta) {
+        Write-Host "   serve" -ForegroundColor Green
+    } else {
+        Write-Host "   nao serve; vou pedir a senha correta" -ForegroundColor Yellow
         Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue
     }
 }
 
 $tentativas = 0
-while (-not $env:PGPASSWORD -or -not (Testar-Conexao $UsuarioDb $Porta)) {
+while (-not ($env:PGPASSWORD -and (Testar-Conexao $UsuarioDb $Porta))) {
     $tentativas++
     if ($tentativas -gt 3) {
         Write-Host ""
@@ -152,11 +207,10 @@ while (-not $env:PGPASSWORD -or -not (Testar-Conexao $UsuarioDb $Porta)) {
     }
     $env:PGPASSWORD = Pedir-Senha $UsuarioDb
     if (-not $env:PGPASSWORD) {
-        Write-Host "   senha vazia." -ForegroundColor Yellow
-        continue
+        Write-Host "   senha vazia" -ForegroundColor Yellow
+    } elseif (-not (Testar-Conexao $UsuarioDb $Porta)) {
+        Write-Host "   senha incorreta" -ForegroundColor Yellow
     }
-    if (Testar-Conexao $UsuarioDb $Porta) { break }
-    Write-Host "   senha incorreta." -ForegroundColor Yellow
 }
 Write-Host "Conexao com o PostgreSQL confirmada." -ForegroundColor Green
 
@@ -166,64 +220,74 @@ $usuarioUrl = [uri]::EscapeDataString($UsuarioDb)
 $env:DATABASE_URL = "postgres://${usuarioUrl}:${senhaUrl}@127.0.0.1:$Porta/$Banco"
 $env:DJANGO_SETTINGS_MODULE = "config.settings.dev"
 
+$comuns = @("-w", "-U", $UsuarioDb, "-h", "127.0.0.1", "-p", "$Porta")
+
+# --------------------------------------------------------------------- banco
+
 if ($Backup) {
     Write-Host "==> recriando o banco '$Banco'" -ForegroundColor Cyan
-    & dropdb -w -U $UsuarioDb -h 127.0.0.1 -p $Porta --if-exists --force $Banco
-    & createdb -w -U $UsuarioDb -h 127.0.0.1 -p $Porta $Banco
-    if ($LASTEXITCODE -ne 0) {
+    Executar -Programa "dropdb" -Silencioso -Argumentos (
+        $comuns + @("--if-exists", "--force", $Banco)) | Out-Null
+    if ((Executar -Programa "createdb" -Argumentos ($comuns + @($Banco))) -ne 0) {
         Write-Host ""
         Write-Host "Nao foi possivel criar o banco." -ForegroundColor Red
-        Write-Host "Causas comuns: senha incorreta, servico parado ou porta errada."
+        Write-Host "Causas comuns: servico parado ou porta errada (-Porta)."
         Write-Host "  servicos:  Get-Service *postgres*"
-        Write-Host "  esqueceu a senha? veja a secao 'Senha do PostgreSQL' no README"
         throw "falha ao criar o banco"
     }
 
     Write-Host "==> restaurando o backup (o arquivo original nao e alterado)" -ForegroundColor Cyan
-    # O -e (--exit-on-error) nao e usado de proposito: o dump traz objetos que nao
-    # se aplicam a uma instalacao local (extensao pg_stat_statements, comentario do
-    # schema public, propriedades do banco do Heroku). Esses erros sao inofensivos,
-    # e as tabelas e os dados sao restaurados normalmente.
-    & pg_restore -w --no-owner --no-privileges -U $UsuarioDb -h 127.0.0.1 -p $Porta -d $Banco $Backup
+    # O dump traz objetos que nao se aplicam a uma instalacao local (extensao
+    # pg_stat_statements, comentario do schema public, propriedades do banco do
+    # Heroku). Esses erros sao inofensivos: tabelas e dados entram normalmente.
+    Executar -Programa "pg_restore" -Argumentos (
+        $comuns + @("--no-owner", "--no-privileges", "-d", $Banco, $Backup)) | Out-Null
     Write-Host "   (mensagens sobre extensao/comentario/propriedades acima sao esperadas)"
 
-    # Em vez de confiar nos avisos, confere se os dados chegaram de fato.
     Write-Host "==> verificando o conteudo restaurado" -ForegroundColor Cyan
-    $fichas = (& psql -w -At -U $UsuarioDb -h 127.0.0.1 -p $Porta -d $Banco `
-        -c "SELECT count(*) FROM fichas_ficha").Trim()
-    $ingredientes = (& psql -w -At -U $UsuarioDb -h 127.0.0.1 -p $Porta -d $Banco `
-        -c "SELECT count(*) FROM fichas_ingrediente").Trim()
+    $fichas = Consultar $UsuarioDb $Porta $Banco "SELECT count(*) FROM fichas_ficha"
+    $ingredientes = Consultar $UsuarioDb $Porta $Banco "SELECT count(*) FROM fichas_ingrediente"
     if (-not $fichas -or [int]$fichas -eq 0) {
         Write-Host "A restauracao nao trouxe fichas." -ForegroundColor Red
-        Write-Host "Verifique as mensagens do pg_restore acima (o cliente precisa ser 17+)."
+        Write-Host "Veja as mensagens do pg_restore acima (o cliente precisa ser 17+)."
         throw "restauracao sem dados"
     }
     Write-Host "   $fichas fichas e $ingredientes ingredientes no banco" -ForegroundColor Green
 
     Write-Host "==> reconhecendo o schema legado" -ForegroundColor Cyan
-    & $py manage.py migrate --fake-initial --noinput
+    if ((Executar -Programa $py -Argumentos @(
+            "manage.py", "migrate", "--fake-initial", "--noinput")) -ne 0) {
+        throw "falha ao aplicar as migrations"
+    }
 
     Write-Host "==> saneamento (relatorio, nada e gravado)" -ForegroundColor Cyan
-    & $py manage.py sanear_backup --dry-run
+    Executar -Programa $py -Argumentos @("manage.py", "sanear_backup", "--dry-run") | Out-Null
     Write-Host "==> saneamento (aplicando)" -ForegroundColor Cyan
-    & $py manage.py sanear_backup
+    if ((Executar -Programa $py -Argumentos @("manage.py", "sanear_backup")) -ne 0) {
+        throw "falha no saneamento"
+    }
 
     Write-Host ""
     Write-Host "Acervo restaurado." -ForegroundColor Green
-    Write-Host "Os usuarios sao os reais do backup. Para criar um acesso local:"
-    Write-Host "  .\.venv\Scripts\python.exe manage.py createsuperuser"
+    Write-Host "Os usuarios sao os reais do backup. Para criar um acesso local, em"
+    Write-Host "outro terminal:  .\.venv\Scripts\python.exe manage.py createsuperuser"
 } else {
-    & createdb -w -U $UsuarioDb -h 127.0.0.1 -p $Porta $Banco 2>$null
+    Executar -Programa "createdb" -Silencioso -Argumentos ($comuns + @($Banco)) | Out-Null
+
     Write-Host "==> aplicando as migrations" -ForegroundColor Cyan
-    & $py manage.py migrate --noinput
+    if ((Executar -Programa $py -Argumentos @("manage.py", "migrate", "--noinput")) -ne 0) {
+        throw "falha ao aplicar as migrations"
+    }
 
     $senhaAdmin = if ($env:INSTANCIA_ADMIN_SENHA) { $env:INSTANCIA_ADMIN_SENHA } else { "admin-local-123456" }
     $env:INSTANCIA_ADMIN_SENHA = $senhaAdmin
     Write-Host "==> configurando a instancia" -ForegroundColor Cyan
-    & $py manage.py bootstrap_instancia --nome "Nutri Local" --admin admin --chave CHAVE-LOCAL
-    if ($LASTEXITCODE -ne 0) {
+    if ((Executar -Programa $py -Argumentos @(
+            "manage.py", "bootstrap_instancia", "--nome", "Nutri Local",
+            "--admin", "admin", "--chave", "CHAVE-LOCAL")) -ne 0) {
         Write-Host "(instancia ja estava configurada - nada a fazer)" -ForegroundColor Yellow
     }
+
     Write-Host ""
     Write-Host "Instancia nova pronta." -ForegroundColor Green
     Write-Host "  usuario: admin"
@@ -232,6 +296,6 @@ if ($Backup) {
 }
 
 Write-Host ""
-Write-Host "Iniciando o servidor em http://localhost:8000 (Ctrl+C para parar)" -ForegroundColor Green
+Write-Host "Servidor em http://localhost:8000 (Ctrl+C para parar)" -ForegroundColor Green
 Write-Host ""
-& $py manage.py runserver
+Executar -Programa $py -Argumentos @("manage.py", "runserver") | Out-Null

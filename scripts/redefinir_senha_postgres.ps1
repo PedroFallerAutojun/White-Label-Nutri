@@ -20,6 +20,48 @@ $ErrorActionPreference = "Stop"
 
 # ------------------------------------------------------------------ funcoes
 
+function Executar {
+    # Executa um programa externo e devolve o codigo de saida.
+    #
+    # Necessario porque, com $ErrorActionPreference = "Stop", qualquer texto que um
+    # programa escreva em stderr vira erro FATAL no PowerShell, mesmo redirecionado.
+    # docker, psql e pg_restore usam stderr para mensagens normais.
+    param(
+        [Parameter(Mandatory = $true)][string]$Programa,
+        [string[]]$Argumentos = @(),
+        [switch]$Silencioso
+    )
+    $anterior = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        if ($Silencioso) {
+            & $Programa @Argumentos 2>&1 | Out-Null
+        } else {
+            & $Programa @Argumentos 2>&1 | ForEach-Object { Write-Host "   $_" }
+        }
+        return $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $anterior
+    }
+}
+
+function Capturar {
+    # Igual a Executar, mas devolve a saida em vez do codigo.
+    param(
+        [Parameter(Mandatory = $true)][string]$Programa,
+        [string[]]$Argumentos = @()
+    )
+    $anterior = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $saida = (& $Programa @Argumentos 2>$null)
+    } finally {
+        $ErrorActionPreference = $anterior
+    }
+    if ($LASTEXITCODE -ne 0) { return $null }
+    return ("$saida").Trim()
+}
+
 function Reiniciar-Postgres($nomeServico, $pastaDados) {
     # Para, espera de fato parar e inicia. Se nao subir, mostra o log do
     # PostgreSQL, que diz o motivo exato.
@@ -172,8 +214,10 @@ try {
     $senhaEscapada = $NovaSenha -replace "'", "''"
     # -w mesmo em modo trust: se a liberacao nao tiver surtido efeito, falha na hora
     # em vez de travar esperando uma senha (e o finally restaura a configuracao).
-    & $psql -w -U $Usuario -h 127.0.0.1 -d postgres -c "ALTER USER $Usuario PASSWORD '$senhaEscapada'"
-    if ($LASTEXITCODE -ne 0) { throw "o comando ALTER USER falhou" }
+    $codigo = Executar -Programa $psql -Argumentos @(
+        "-w", "-U", $Usuario, "-h", "127.0.0.1", "-d", "postgres",
+        "-c", "ALTER USER $Usuario PASSWORD '$senhaEscapada'")
+    if ($codigo -ne 0) { throw "o comando ALTER USER falhou" }
 }
 finally {
     # Sempre restaura a configuracao original, mesmo em caso de erro. A copia de
@@ -199,8 +243,8 @@ finally {
 
 Write-Host "==> testando a nova senha" -ForegroundColor Cyan
 $env:PGPASSWORD = $NovaSenha
-& $psql -w -U $Usuario -h 127.0.0.1 -d postgres -c "SELECT version();" *> $null
-$ok = ($LASTEXITCODE -eq 0)
+$ok = ((Executar -Programa $psql -Silencioso -Argumentos @(
+    "-w", "-U", $Usuario, "-h", "127.0.0.1", "-d", "postgres", "-c", "SELECT version();")) -eq 0)
 # Remove-Item em vez de = $null: a variavel nao deve sobrar na sessao, senao
 # outros scripts a herdam e tentam autenticar com ela.
 Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue

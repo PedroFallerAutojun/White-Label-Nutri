@@ -113,7 +113,47 @@ def validar(caminho: Path) -> list[str]:
                 f"linha {numero}: cliente do PostgreSQL sem -w; sem essa flag ele "
                 "abre prompt de senha e o script trava em silencio"
             )
+
+    # Com $ErrorActionPreference = "Stop", texto em stderr de um programa externo
+    # vira erro FATAL no PowerShell (mesmo redirecionado). Chamadas externas devem
+    # passar por um ajudante que baixe a preferencia para "Continue".
+    if re.search(r'\$ErrorActionPreference\s*=\s*"Stop"', texto):
+        seguras = faixas_de_funcoes_seguras(texto)
+        externos = r"(psql|pg_restore|pg_dump|createdb|dropdb|docker|pip|py|python)"
+        for numero, linha in enumerate(texto.splitlines(), 1):
+            codigo_linha = sem_comentarios_nem_strings(linha)
+            if not re.search(rf"&\s+\$?\w*{externos}\b|^\s*{externos}\s+\w", codigo_linha):
+                continue
+            if any(inicio <= numero <= fim for inicio, fim in seguras):
+                continue  # dentro do ajudante, que ja ajusta a preferencia
+            problemas.append(
+                f"linha {numero}: programa externo chamado diretamente com "
+                'ErrorActionPreference="Stop"; texto em stderr derruba o script '
+                "(use o ajudante Executar/Capturar)"
+            )
     return problemas
+
+
+def faixas_de_funcoes_seguras(texto: str) -> list[tuple[int, int]]:
+    """Linhas das funcoes que baixam ErrorActionPreference para "Continue"."""
+    linhas = texto.splitlines()
+    faixas = []
+    for indice, linha in enumerate(linhas):
+        if not re.match(r"^\s*function\s+[\w-]+", linha):
+            continue
+        profundidade = 0
+        iniciou = False
+        for fim in range(indice, len(linhas)):
+            codigo = sem_comentarios_nem_strings(linhas[fim])
+            profundidade += codigo.count("{") - codigo.count("}")
+            if codigo.count("{"):
+                iniciou = True
+            if iniciou and profundidade <= 0:
+                corpo = "\n".join(linhas[indice:fim + 1])
+                if re.search(r'\$ErrorActionPreference\s*=\s*"Continue"', corpo):
+                    faixas.append((indice + 1, fim + 1))
+                break
+    return faixas
 
 
 def main() -> int:

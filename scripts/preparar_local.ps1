@@ -18,9 +18,50 @@ $usuarioDb = if ($env:POSTGRES_USER) { $env:POSTGRES_USER } else { "postgres" }
 $banco     = if ($env:POSTGRES_DB)   { $env:POSTGRES_DB }   else { "nutri" }
 $portaWeb  = if ($env:PORTA_WEB)     { $env:PORTA_WEB }     else { "8000" }
 
+function Executar {
+    # Executa um programa externo e devolve o codigo de saida.
+    #
+    # Necessario porque, com $ErrorActionPreference = "Stop", qualquer texto que um
+    # programa escreva em stderr vira erro FATAL no PowerShell, mesmo redirecionado.
+    # docker, psql e pg_restore usam stderr para mensagens normais.
+    param(
+        [Parameter(Mandatory = $true)][string]$Programa,
+        [string[]]$Argumentos = @(),
+        [switch]$Silencioso
+    )
+    $anterior = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        if ($Silencioso) {
+            & $Programa @Argumentos 2>&1 | Out-Null
+        } else {
+            & $Programa @Argumentos 2>&1 | ForEach-Object { Write-Host "   $_" }
+        }
+        return $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $anterior
+    }
+}
+
+function Capturar {
+    # Igual a Executar, mas devolve a saida em vez do codigo.
+    param(
+        [Parameter(Mandatory = $true)][string]$Programa,
+        [string[]]$Argumentos = @()
+    )
+    $anterior = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $saida = (& $Programa @Argumentos 2>$null)
+    } finally {
+        $ErrorActionPreference = $anterior
+    }
+    if ($LASTEXITCODE -ne 0) { return $null }
+    return ("$saida").Trim()
+}
+
 function Testar-DockerCompose {
-    docker compose version *> $null
-    if ($LASTEXITCODE -ne 0) {
+    if ((Executar -Programa "docker" -Silencioso -Argumentos @("compose", "version")) -ne 0) {
         throw "'docker compose' nao respondeu. O Docker Desktop esta aberto e rodando?"
     }
 }
@@ -28,17 +69,19 @@ function Testar-DockerCompose {
 function Aguardar-Banco {
     Write-Host "==> aguardando o banco" -ForegroundColor Cyan
     foreach ($tentativa in 1..60) {
-        docker compose exec -T db pg_isready -U $usuarioDb *> $null
-        if ($LASTEXITCODE -eq 0) { return }
+        $codigo = Executar -Programa "docker" -Silencioso -Argumentos @(
+            "compose", "exec", "-T", "db", "pg_isready", "-U", $usuarioDb)
+        if ($codigo -eq 0) { return }
         Start-Sleep -Seconds 1
     }
     throw "o banco nao ficou disponivel."
 }
 
-function Invocar($descricao, [scriptblock]$comando) {
+function Compor($descricao, [string[]]$argumentos) {
     Write-Host "==> $descricao" -ForegroundColor Cyan
-    & $comando
-    if ($LASTEXITCODE -ne 0) { throw "falhou: $descricao" }
+    if ((Executar -Programa "docker" -Argumentos (@("compose") + $argumentos)) -ne 0) {
+        throw "falhou: $descricao"
+    }
 }
 
 Testar-DockerCompose
@@ -53,35 +96,34 @@ if ($Backup) {
     }
 
     # A restauracao recria o banco: com a aplicacao conectada, o dropdb falharia.
-    Invocar "subindo apenas o banco (a aplicacao sobe depois)" { docker compose up -d --build db }
+    Compor "subindo apenas o banco (a aplicacao sobe depois)" @("up", "-d", "--build", "db")
     Aguardar-Banco
 
     $arquivo = "/backups/" + (Split-Path $Backup -Leaf)
-    Invocar "removendo o banco anterior" {
-        docker compose exec -T db dropdb -U $usuarioDb --if-exists --force $banco
-    }
-    Invocar "criando o banco" { docker compose exec -T db createdb -U $usuarioDb $banco }
-    Invocar "restaurando $arquivo (o arquivo original nao e alterado)" {
-        docker compose exec -T db pg_restore --no-owner --no-privileges -U $usuarioDb -d $banco $arquivo
-    }
+    Compor "removendo o banco anterior" @(
+        "exec", "-T", "db", "dropdb", "-w", "-U", $usuarioDb, "--if-exists", "--force", $banco)
+    Compor "criando o banco" @("exec", "-T", "db", "createdb", "-w", "-U", $usuarioDb, $banco)
+    Compor "restaurando $arquivo (o arquivo original nao e alterado)" @(
+        "exec", "-T", "db", "pg_restore", "-w", "--no-owner", "--no-privileges",
+        "-U", $usuarioDb, "-d", $banco, $arquivo)
 
     # Confere se os dados chegaram, em vez de confiar nos avisos do pg_restore.
     Write-Host "==> verificando o conteudo restaurado" -ForegroundColor Cyan
-    $fichas = (docker compose exec -T db psql -w -At -U $usuarioDb -d $banco -c "SELECT count(*) FROM fichas_ficha").Trim()
+    $fichas = Capturar -Programa "docker" -Argumentos @(
+        "compose", "exec", "-T", "db", "psql", "-w", "-At", "-U", $usuarioDb,
+        "-d", $banco, "-c", "SELECT count(*) FROM fichas_ficha")
     if (-not $fichas -or [int]$fichas -eq 0) {
         throw "a restauracao nao trouxe fichas; veja as mensagens do pg_restore acima"
     }
     Write-Host "   $fichas fichas no banco" -ForegroundColor Green
 
     # O entrypoint do web aplica migrate --fake-initial, reconhecendo o schema legado.
-    Invocar "subindo a aplicacao" { docker compose up -d --build web }
+    Compor "subindo a aplicacao" @("up", "-d", "--build", "web")
 
-    Invocar "saneamento (relatorio, nada e gravado)" {
-        docker compose exec -T web python manage.py sanear_backup --dry-run
-    }
-    Invocar "saneamento (aplicando)" {
-        docker compose exec -T web python manage.py sanear_backup
-    }
+    Compor "saneamento (relatorio, nada e gravado)" @(
+        "exec", "-T", "web", "python", "manage.py", "sanear_backup", "--dry-run")
+    Compor "saneamento (aplicando)" @(
+        "exec", "-T", "web", "python", "manage.py", "sanear_backup")
 
     Write-Host ""
     Write-Host "Acervo restaurado. Entre com um usuario existente da instancia." -ForegroundColor Green
@@ -89,7 +131,7 @@ if ($Backup) {
     Write-Host "  docker compose exec web python manage.py createsuperuser"
 }
 else {
-    Invocar "subindo os servicos" { docker compose up -d --build }
+    Compor "subindo os servicos" @("up", "-d", "--build")
     Aguardar-Banco
 
     $senha  = if ($env:INSTANCIA_ADMIN_SENHA) { $env:INSTANCIA_ADMIN_SENHA } else { "admin-local-123456" }
@@ -98,8 +140,11 @@ else {
     $chave  = if ($env:CHAVE_CADASTRO)        { $env:CHAVE_CADASTRO }        else { "CHAVE-LOCAL" }
 
     Write-Host "==> configurando a instancia" -ForegroundColor Cyan
-    docker compose exec -T -e "INSTANCIA_ADMIN_SENHA=$senha" web python manage.py bootstrap_instancia --nome $nome --admin $admin --chave $chave
-    if ($LASTEXITCODE -ne 0) {
+    $codigo = Executar -Programa "docker" -Argumentos @(
+        "compose", "exec", "-T", "-e", "INSTANCIA_ADMIN_SENHA=$senha", "web",
+        "python", "manage.py", "bootstrap_instancia", "--nome", $nome,
+        "--admin", $admin, "--chave", $chave)
+    if ($codigo -ne 0) {
         Write-Host "(instancia ja estava configurada - nada a fazer)" -ForegroundColor Yellow
     }
 
