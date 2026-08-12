@@ -410,3 +410,102 @@ def test_paginacao_preserva_filtros(logado, membro):
     assert resp.context["total"] == 30
     assert all("Pão" in f.nomeFicha for f in resp.context["fichas"].object_list)
     assert "f_nomeFicha=P%C3%A3o" in resp.context["filtrosQuery"]
+
+
+# ------------------------------------------- conferência de tabela desatualizada
+
+
+def test_rotulo_avisa_quando_porcao_e_incoerente(logado, ficha, ingrediente):
+    """B18: a coluna da porção calculada com um peso diferente do declarado.
+
+    Reproduz o caso real do acervo: a tabela foi gravada quando o peso da porção
+    era o do cliente (100 g) e depois o peso ANVISA (50 g) passou a valer.
+    """
+    Ficha_Ingrediente.objects.create(
+        ficha=ficha, ingrediente=ingrediente, pesoBruto=100, pesoLiquido=100,
+        nomeFantasia="Farinha",
+    )
+    # calcula com o peso ANVISA vazio -> usa o peso cliente (100 g)
+    ficha.pesoAnvisa = None
+    ficha.save()
+    from apps.fichas import servicos
+
+    servicos.recalcular_tabela(ficha)
+
+    # agora o peso ANVISA passa a valer, sem recalcular (como no acervo)
+    ficha.pesoAnvisa = 50
+    ficha.save(update_fields=["pesoAnvisa"])
+
+    resp = logado.get(f"/fichaX/{ficha.pk}")
+    corpo = resp.content.decode()
+    assert resp.context["conferencia"]["porcao_incoerente"] is True
+    assert resp.context["conferencia"]["peso_declarado"] == 50
+    assert round(resp.context["conferencia"]["peso_usado"]) == 100
+    assert "Esta tabela está desatualizada" in corpo
+    assert "Recalcular esta tabela" in corpo
+
+
+def test_recalcular_corrige_a_incoerencia(logado, ficha, ingrediente):
+    Ficha_Ingrediente.objects.create(
+        ficha=ficha, ingrediente=ingrediente, pesoBruto=100, pesoLiquido=100,
+        nomeFantasia="Farinha",
+    )
+    from apps.fichas import servicos
+
+    ficha.pesoAnvisa = None
+    ficha.save()
+    servicos.recalcular_tabela(ficha)
+    ficha.pesoAnvisa = 50
+    ficha.save(update_fields=["pesoAnvisa"])
+
+    resp = logado.post(f"/recalcularFicha/{ficha.pk}", follow=True)
+    assert "Tabela recalculada" in resp.content.decode()
+    assert resp.context["conferencia"]["desatualizada"] is False
+    # 100 g de farinha, peso total 200 g -> 5 g proteína/100 g; porção 50 g -> 2,5 g
+    tabela = Tabela.objects.get(pk=ficha.pk)
+    assert tabela.proteinas_Arred == pytest.approx(2.5)
+
+
+def test_ficha_em_dia_nao_exibe_aviso(logado, ficha, ingrediente):
+    Ficha_Ingrediente.objects.create(
+        ficha=ficha, ingrediente=ingrediente, pesoBruto=100, pesoLiquido=100,
+        nomeFantasia="Farinha",
+    )
+    from apps.fichas import servicos
+
+    servicos.recalcular_tabela(ficha)
+    resp = logado.get(f"/fichaX/{ficha.pk}")
+    assert resp.context["conferencia"]["desatualizada"] is False
+    assert "Esta tabela está desatualizada" not in resp.content.decode()
+
+
+def test_recalcular_exige_login_e_post(logado, ficha):
+    from django.test import Client
+
+    assert logado.get(f"/recalcularFicha/{ficha.pk}").status_code == 405
+    # cliente novo, sem sessao: a fixture `logado` reaproveita o mesmo objeto client
+    anonimo = Client()
+    resp = anonimo.post(f"/recalcularFicha/{ficha.pk}")
+    assert resp.status_code == 302 and "/loginUser" in resp.url
+
+
+def test_auditoria_lista_fichas_desatualizadas(logado, ficha, ingrediente, capsys):
+    from io import StringIO
+    from django.core.management import call_command
+    from apps.fichas import servicos
+
+    Ficha_Ingrediente.objects.create(
+        ficha=ficha, ingrediente=ingrediente, pesoBruto=100, pesoLiquido=100,
+        nomeFantasia="Farinha",
+    )
+    ficha.pesoAnvisa = None
+    ficha.save()
+    servicos.recalcular_tabela(ficha)
+    ficha.pesoAnvisa = 50
+    ficha.save(update_fields=["pesoAnvisa"])
+
+    saida = StringIO()
+    call_command("auditar_tabelas", stdout=saida)
+    texto = saida.getvalue()
+    assert "porcao INCOERENTE no rotulo:       1" in texto.replace("   1", "       1") or "INCOERENTE" in texto
+    assert str(ficha.pk) in texto

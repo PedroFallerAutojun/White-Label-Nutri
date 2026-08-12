@@ -76,6 +76,47 @@
   </div>
 </div>
 
+{% if conferencia.desatualizada %}
+<div class="alert alert-warning" role="alert">
+  <h2 class="h6 alert-heading">Esta tabela está desatualizada</h2>
+  {% if conferencia.porcao_incoerente %}
+    <p class="mb-2">
+      O rótulo declara <strong>porção de {{ conferencia.peso_declarado|floatformat:"-2" }} g</strong>,
+      mas a coluna da porção foi calculada com
+      <strong>{{ conferencia.peso_usado|floatformat:"-2" }} g</strong>.
+      As duas colunas não correspondem entre si.
+    </p>
+  {% else %}
+    <p class="mb-2">
+      Os valores gravados diferem do cálculo atual — os ingredientes ou os pesos
+      mudaram depois da última edição desta ficha.
+    </p>
+  {% endif %}
+  <details class="mb-2">
+    <summary>Ver as diferenças ({{ conferencia.divergencias|length }})</summary>
+    <div class="table-responsive mt-2">
+      <table class="table table-sm mb-0 bg-white">
+        <thead><tr><th>Nutriente</th><th class="text-end">No rótulo</th><th class="text-end">Recalculado</th></tr></thead>
+        <tbody>
+          {% for d in conferencia.divergencias %}
+          <tr>
+            <td>{{ d.rotulo }}</td>
+            <td class="text-end">{{ d.gravado|floatformat:"-2" }} {{ d.unidade }}</td>
+            <td class="text-end fw-semibold">{{ d.esperado|floatformat:"-2" }} {{ d.unidade }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+  <form method="post" action="{% url 'recalcularFicha' fichaAtual.pk %}"
+        onsubmit="return confirm('Recalcular a tabela com os pesos e ingredientes atuais? Os valores do rótulo serão substituídos.');">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-warning btn-sm">Recalcular esta tabela</button>
+  </form>
+</div>
+{% endif %}
+
 {# ------- Bloco copiável: estrutura preservada do original (cola no Google Docs) ------- #}
 <div id="conteudo-para-copiar">
 

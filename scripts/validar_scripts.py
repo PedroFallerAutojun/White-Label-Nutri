@@ -24,6 +24,7 @@ CONHECIDOS = {
     "Start-Service", "Stop-Service", "Restart-Service", "Start-Sleep", "Get-Command",
     "Get-ChildItem", "Sort-Object", "Select-Object", "Where-Object", "ForEach-Object",
     "Get-CimInstance", "New-Object", "Out-Null", "Out-String", "Set-ExecutionPolicy",
+    "Get-NetTCPConnection", "Get-Process", "Select-String",
 }
 
 

@@ -75,6 +75,15 @@ Salvo indicação, todas são **[CONFIRMADO]** por leitura do código.
 - **Onde:** `attTabela` (views.py:442). Nota: fichas antigas foram gravadas com fórmula anterior
   (pesoTotal/pesoAnvisa); por isso a exibição recalcula (BR-011).
 
+### BR-005b — ⚠ Assimetria entre cabeçalho e colunas (origem do B18)
+- **Descrição:** o cabeçalho do rótulo (peso da porção e número de porções) é
+  **recalculado na exibição** a partir dos pesos atuais da ficha, enquanto as colunas de
+  nutrientes vêm da tabela **gravada**. Quando os pesos mudam sem recálculo, o rótulo
+  declara um peso e os números correspondem a outro.
+- **Onde:** `fichaX` (pesoAnvisaSemZero, numPorcoes recalculados) × Tabela persistida.
+- **Impacto:** 73 fichas do acervo. A nova versão preserva os valores gravados, mas
+  detecta e avisa (D-017).
+
 ### BR-011 — Número de porções (exibição ANVISA)
 - **Descrição:** na fichaX: exato → "10 porções"; quebrado e > 3 → "Cerca de N porções";
   quebrado e ≤ 3 → arredonda ao 1/4 mais próximo em número misto ("1 e 1/2 porções",

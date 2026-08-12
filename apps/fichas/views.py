@@ -307,6 +307,10 @@ def ficha_x(request, pk):
         for item in Ficha_Ingrediente.objects.filter(ficha=ficha).select_related("ingrediente")
     ]
 
+    # Confere se o que esta gravado corresponde ao calculo atual. Nao altera nada:
+    # o rotulo continua mostrando os valores gravados (D-007), mas com aviso.
+    conferencia = servicos.conferir_tabela(ficha, tabela)
+
     combinacao = rotulo.combinacao_lupa(
         rotulo.nutrientes_altos(
             tabela.acucaresadd_100g, tabela.gordSat_100g, tabela.sodio_100g
@@ -330,8 +334,28 @@ def ficha_x(request, pk):
             "numPorcoes": rotulo.num_porcoes_exibicao(ficha.pesoPorcao, ficha.pesoAnvisa),
             "ordemIngredientes": rotulo.ordenar_ingredientes(itens),
             "lupa_img": LUPAS_BASE64.get(combinacao) if combinacao else None,
+            "conferencia": conferencia,
         },
     )
+
+
+@login_required
+@require_POST
+def recalcular_ficha(request, pk):
+    """Recalcula a tabela de UMA ficha, por acao explicita do usuario.
+
+    Existe porque o acervo tem fichas cuja tabela foi gravada com pesos ou
+    ingredientes diferentes dos atuais (ver docs/FUTURE_IMPROVEMENTS.md, B18).
+    Nunca acontece em massa: os valores gravados sao os rotulos emitidos (D-007).
+    """
+    ficha = get_object_or_404(Ficha, pk=pk)
+    servicos.recalcular_tabela(ficha)
+    messages.success(
+        request,
+        "Tabela recalculada com os pesos e ingredientes atuais. "
+        "Confira os valores antes de emitir o rotulo.",
+    )
+    return redirect("fichaX", pk=pk)
 
 
 @login_required

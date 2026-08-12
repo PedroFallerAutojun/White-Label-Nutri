@@ -25,6 +25,7 @@ urlpatterns = [
     path("fichaX/<int:pk>", views.ficha_x, name="fichaX"),
     path("deletarFicha/<int:pk>", views.deletar_ficha, name="deletarFicha"),
     path("atualizarFinalizada/<int:pk>", views.atualizar_finalizada, name="atualizarFinalizada"),
+    path("recalcularFicha/<int:pk>", views.recalcular_ficha, name="recalcularFicha"),
     # Receita
     path(
         "deletarItemReceita/<int:pk>/<int:id>/",

@@ -24,6 +24,32 @@ Nada daqui deve ser implementado automaticamente. Prioridade do projeto:
 | B15 | `int(pesoAnvisa or pesoPorcao)` sem peso válido crasha fichaX | views.py (pesoAnvisaSemZero); 11 fichas no backup (ex.: 1273, com pesoAnvisa = 0) | **CONFIRMADO em runtime** (TypeError) → 500 |
 | B16 | `attTabela` crasha com dados nulos (`float * None`) | 2 fichas do backup falham no recálculo | **CONFIRMADO em runtime** — novo cálculo trata None como 0 |
 | B17 | Ordem dos ingredientes do rótulo é indefinida entre itens de MESMO peso (ORDER BY sem desempate) | views.py ordenarIngredientesPorQuantidade; 251/1557 fichas têm empates | Nova versão usa desempate estável (ordem de inserção); paridade validada por equivalência de grupos |
+| **B18** | **Rótulo internamente incoerente: o cabeçalho recalcula o peso da porção na exibição, mas as colunas vêm da tabela gravada. Se o peso mudou depois do último cálculo, o rótulo declara um peso e os números correspondem a outro.** | **73 fichas no acervo.** Ex.: #32 declara 5 g e a coluna usa 200 g; #6594 declara 10 g e usa 25 g (115 kcal/100 g com 29 kcal/porção, quando 10 g de 115 kcal/100 g são 11,5). Causa raiz: `pesoAnvisa` foi adicionado na migration 0010 e as tabelas antigas foram calculadas com `pesoPorcao` | **Encontrado pelo usuário.** A nova versão detecta e avisa na tela do rótulo, com ação explícita de recalcular (D-017); `auditar_tabelas` lista os casos |
+
+## Achados de dados no acervo (auditoria de 2026-08-12)
+
+`python manage.py auditar_tabelas` sobre as 1.574 fichas do backup:
+
+| Situação | Fichas |
+|---|---:|
+| Tabela em dia com o cálculo atual | 112 |
+| Diferença só de arredondamento (até 2%) | 236 |
+| Diferença de 2% a 10% no valor energético da porção | 348 |
+| Diferença de 10% a 50% | 425 |
+| Diferença acima de 50% | 396 |
+| Diferença apenas em outros nutrientes | 57 |
+| **Rótulo internamente incoerente (B18)** | **73** |
+
+Leitura correta desses números:
+
+- **Os 73 incoerentes são defeito de documento** — o rótulo declara um peso de porção e
+  as colunas correspondem a outro. Precisam de recálculo antes de qualquer nova emissão.
+- **As demais diferenças são consequência esperada** de B13/D-006: editar um ingrediente
+  não recalcula as fichas que o usam. Uma ficha guarda o cálculo do momento em que foi
+  editada; ao longo de seis anos os ingredientes foram corrigidos, então recalcular hoje
+  dá outro número. O rótulo emitido na época pode ter estado correto.
+- Casos como #20 "Tempero Bahiano" (5 → 0 kcal) sugerem ingredientes que perderam os
+  dados nutricionais. **Vale investigação à parte** antes de recalcular essas fichas.
 
 ## Dívidas estruturais
 - 335 colunas em `fichas_tabela` / ~100 em `fichas_ingrediente` → normalizar para
