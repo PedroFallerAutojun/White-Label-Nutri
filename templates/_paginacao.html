@@ -1,0 +1,50 @@
+{% comment %}
+Navegação entre páginas preservando os filtros.
+As propriedades previous_page_number/next_page_number lançam EmptyPage quando não
+existe página anterior/seguinte, por isso só são acessadas dentro dos guardas.
+{% endcomment %}
+{% if pagina.paginator.num_pages > 1 %}
+<nav aria-label="Paginação" class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+  <p class="text-secondary small mb-0">
+    Mostrando {{ pagina.start_index }}–{{ pagina.end_index }} de {{ pagina.paginator.count }}
+  </p>
+  <ul class="pagination pagination-sm mb-0">
+    {% if pagina.has_previous %}
+      <li class="page-item">
+        <a class="page-link" aria-label="Página anterior"
+           href="?{% if filtrosQuery %}{{ filtrosQuery }}&{% endif %}pagina={{ pagina.previous_page_number }}">
+          Anterior
+        </a>
+      </li>
+    {% else %}
+      <li class="page-item disabled"><span class="page-link">Anterior</span></li>
+    {% endif %}
+
+    {% for numero in pagina.paginator.page_range %}
+      {% if numero == pagina.number %}
+        <li class="page-item active" aria-current="page">
+          <span class="page-link">{{ numero }}</span>
+        </li>
+      {% elif numero > pagina.number|add:"-3" and numero < pagina.number|add:"3" %}
+        <li class="page-item">
+          <a class="page-link"
+             href="?{% if filtrosQuery %}{{ filtrosQuery }}&{% endif %}pagina={{ numero }}">{{ numero }}</a>
+        </li>
+      {% endif %}
+    {% endfor %}
+
+    {% if pagina.has_next %}
+      <li class="page-item">
+        <a class="page-link" aria-label="Próxima página"
+           href="?{% if filtrosQuery %}{{ filtrosQuery }}&{% endif %}pagina={{ pagina.next_page_number }}">
+          Próxima
+        </a>
+      </li>
+    {% else %}
+      <li class="page-item disabled"><span class="page-link">Próxima</span></li>
+    {% endif %}
+  </ul>
+</nav>
+{% elif pagina.paginator.count %}
+<p class="text-secondary small">{{ pagina.paginator.count }} registro(s).</p>
+{% endif %}

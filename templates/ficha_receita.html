@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block titulo %}Receita: {{ fichaAtual.nomeFicha }} — {{ instancia_nome }}{% endblock %}
+{% block conteudo %}
+<h1 class="h3 mb-1">Receita</h1>
+<p class="text-secondary">{{ fichaAtual.nomeFicha }} · cliente {{ fichaAtual.cliente }}</p>
+
+{% include "_wizard.html" %}
+
+{% if not fichaAtual.pesoTotal or not fichaAtual.pesoPorcao %}
+  <div class="alert alert-warning">
+    Informe o <strong>peso total</strong> e o <strong>peso da porção</strong> na
+    <a href="{% url 'editarFicha1' fichaAtual.pk %}">etapa 1</a> antes de adicionar ingredientes.
+  </div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">
+    <div class="card text-center h-100"><div class="card-body py-3">
+      <div class="text-secondary small">Peso de preparação</div>
+      <div class="h5 mb-0">{{ fichaAtual.pesoLiquidoPreparacao|floatformat:"-2" }} g</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card text-center h-100"><div class="card-body py-3">
+      <div class="text-secondary small">Peso total</div>
+      <div class="h5 mb-0">{{ fichaAtual.pesoTotal|floatformat:"-2" }} g</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card text-center h-100"><div class="card-body py-3">
+      <div class="text-secondary small">Energia (porção)</div>
+      <div class="h5 mb-0">{{ tabelaNutricional.energiakcal_Arred|floatformat:"-2" }} kcal</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card text-center h-100"><div class="card-body py-3">
+      <div class="text-secondary small">Itens na receita</div>
+      <div class="h5 mb-0">{{ itensReceita|length }}</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-header bg-white"><h2 class="h6 mb-0">Adicionar ingrediente</h2></div>
+  <div class="card-body">
+    <form method="post" novalidate class="row g-2 align-items-end">
+      {% csrf_token %}
+      <div class="col-12 col-lg-4">
+        <label class="form-label" for="ingExtra">Ingrediente</label>
+        <input class="form-control" type="text" name="ingExtra" id="ingExtra"
+               list="listaIngredientes" autocomplete="off" required
+               placeholder="Digite para buscar…">
+        <datalist id="listaIngredientes">
+          {% for ingrediente in ingredientes %}<option value="{{ ingrediente.nomeIng }}"></option>{% endfor %}
+        </datalist>
+      </div>
+      <div class="col-6 col-lg-2">
+        <label class="form-label" for="{{ formReceita.nomeFantasia.id_for_label }}">Nome fantasia</label>
+        {{ formReceita.nomeFantasia }}
+      </div>
+      <div class="col-6 col-lg-2">
+        <label class="form-label" for="{{ formReceita.pesoBruto.id_for_label }}">Peso bruto (g)</label>
+        {{ formReceita.pesoBruto }}
+      </div>
+      <div class="col-6 col-lg-2">
+        <label class="form-label" for="{{ formReceita.pesoLiquido.id_for_label }}">Peso líquido (g)</label>
+        {{ formReceita.pesoLiquido }}
+      </div>
+      <div class="col-6 col-lg-2">
+        <label class="form-label" for="{{ formReceita.medidaCaseira.id_for_label }}">Medida caseira</label>
+        {{ formReceita.medidaCaseira }}
+      </div>
+      <div class="col-12 d-flex gap-2 mt-2">
+        <button class="btn btn-primario-instancia" type="submit">Adicionar à receita</button>
+        <a class="btn btn-outline-secondary" href="{% url 'registrarIngrediente' %}" target="_blank" rel="noopener">
+          Cadastrar novo ingrediente
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="table-responsive">
+  <table class="table table-hover align-middle bg-white">
+    <caption class="visually-hidden">Ingredientes da receita</caption>
+    <thead>
+      <tr>
+        <th scope="col">Ingrediente</th>
+        <th scope="col">Nome fantasia</th>
+        <th scope="col" class="text-end">Peso bruto</th>
+        <th scope="col" class="text-end">Peso líquido</th>
+        <th scope="col">Medida caseira</th>
+        <th scope="col" class="text-end">Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in itensReceita %}
+      <tr>
+        <td>
+          <a href="{% url 'editarIngrediente' item.ingrediente.pk %}" target="_blank" rel="noopener">
+            {{ item.ingrediente.nomeIng }}
+          </a>
+        </td>
+        <td>{{ item.nomeFantasia }}</td>
+        <td class="text-end">{{ item.pesoBruto|floatformat:"-2" }} g</td>
+        <td class="text-end">{{ item.pesoLiquido|floatformat:"-2" }} g</td>
+        <td>{{ item.medidaCaseira }}</td>
+        <td class="text-end">
+          <div class="d-inline-flex gap-1">
+            <a class="btn btn-sm btn-outline-secondary"
+               href="{% url 'editarItemReceita' fichaAtual.pk item.id %}">Editar</a>
+            <form method="post" action="{% url 'deletarItemReceita' fichaAtual.pk item.id %}"
+                  onsubmit="return confirm('Remover {{ item.ingrediente.nomeIng|escapejs }} da receita?');">
+              {% csrf_token %}
+              <button class="btn btn-sm btn-outline-danger" type="submit"
+                      {% if itensReceita|length == 1 %}disabled title="A receita precisa de pelo menos um ingrediente"{% endif %}>
+                Remover
+              </button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="text-center text-secondary py-4">
+        Nenhum ingrediente adicionado. Use o formulário acima para montar a receita.
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="d-flex gap-2 mt-3">
+  <a class="btn btn-outline-secondary" href="{% url 'editarFicha1' fichaAtual.pk %}">Voltar</a>
+  <a class="btn btn-primario-instancia" href="{% url 'editarFicha3' fichaAtual.pk %}">Ir para a tabela nutricional</a>
+</div>
+{% endblock %}

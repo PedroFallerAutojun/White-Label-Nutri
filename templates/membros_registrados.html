@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block titulo %}Membros — {{ instancia_nome }}{% endblock %}
+{% block conteudo %}
+<h1 class="h3 mb-3">Membros</h1>
+
+<div class="table-responsive mb-4">
+  <table class="table table-hover align-middle bg-white">
+    <caption class="visually-hidden">Membros cadastrados na instância</caption>
+    <thead>
+      <tr>
+        <th scope="col">Nome</th>
+        <th scope="col">Semestre</th>
+        <th scope="col">E-mail</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for membro in membros %}
+      <tr>
+        <td>{{ membro.nome }}</td>
+        <td>{{ membro.semestre }}</td>
+        <td>{{ membro.email }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="3" class="text-center text-secondary py-4">Nenhum membro cadastrado.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if ehAdmin %}
+<h2 class="h5 mb-3">Administração</h2>
+<div class="row g-3">
+  <div class="col-12 col-lg-4">
+    <div class="card h-100">
+      <div class="card-header bg-white"><h3 class="h6 mb-0">Chave de cadastro</h3></div>
+      <div class="card-body d-flex flex-column">
+        <p class="small mb-3">
+          Chave atual:
+          <code class="user-select-all">{{ chave|default:"— nenhuma definida —" }}</code>
+        </p>
+        <form method="post" action="{% url 'mudaChave' %}" class="mt-auto">
+          {% csrf_token %}
+          {% include "_campo.html" with campo=formChave.key %}
+          <button class="btn btn-outline-secondary btn-sm" type="submit">Definir nova chave</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-4">
+    <div class="card h-100">
+      <div class="card-header bg-white"><h3 class="h6 mb-0">Alterar senha</h3></div>
+      <div class="card-body d-flex flex-column">
+        <form method="post" action="{% url 'trocaSenha' %}" class="d-flex flex-column h-100">
+          {% csrf_token %}
+          {% include "_campo.html" with campo=formTrocaSenha.usuario %}
+          {% include "_campo.html" with campo=formTrocaSenha.nova_senha %}
+          <button class="btn btn-outline-secondary btn-sm mt-auto" type="submit">
+            Alterar senha deste usuário
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-4">
+    <div class="card h-100">
+      <div class="card-header bg-white"><h3 class="h6 mb-0">Excluir membro</h3></div>
+      <div class="card-body d-flex flex-column">
+        <form method="post" action="{% url 'deletaMembro' %}" class="d-flex flex-column h-100"
+              onsubmit="return confirm('Excluir este membro? As fichas e ingredientes serão transferidos.');">
+          {% csrf_token %}
+          {% include "_campo.html" with campo=formApagaMembro.membroExcluido %}
+          {% include "_campo.html" with campo=formApagaMembro.membroDestino %}
+          <button class="btn btn-outline-danger btn-sm mt-auto" type="submit">Excluir membro</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="alert alert-secondary">
+  Para ver ou alterar a chave de cadastro e redefinir senhas, acesse esta página com um
+  usuário administrador da instância.
+</div>
+{% endif %}
+{% endblock %}

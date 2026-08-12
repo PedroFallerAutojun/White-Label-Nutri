@@ -1,0 +1,51 @@
+name: Testes
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: nutri_teste
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/nutri_teste
+      SECRET_KEY: chave-apenas-para-testes-de-integracao-continua
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependências
+        run: pip install -r requirements-dev.txt
+
+      - name: Validar scripts PowerShell
+        run: python scripts/validar_scripts.py
+
+      - name: Verificações do Django
+        run: python manage.py check
+
+      - name: Migrations sem pendências
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Testes (inclui paridade contra o sistema original)
+        run: pytest -q
