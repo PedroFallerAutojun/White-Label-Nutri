@@ -72,8 +72,13 @@ Salvo indicação, todas são **[CONFIRMADO]** por leitura do código.
 
 ### BR-010 — Número de porções (persistido)
 - **Descrição:** `ficha.numPorcoes = int(pesoPorcao / pesoAnvisa)` (trunca); 0 se algum ausente.
-- **Onde:** `attTabela` (views.py:442). Nota: fichas antigas foram gravadas com fórmula anterior
-  (pesoTotal/pesoAnvisa); por isso a exibição recalcula (BR-011).
+- **Onde:** `attTabela` (views.py:442).
+- **Origem [CONFIRMADO pelo Backlog Etapa 1, Task 5.3]:** a fórmula é
+  `pesoPorcaoCliente / pesoAnvisa` = *"quantas porções ANVISA cabem na porção do cliente"*,
+  e substituiu a anterior `pesoTotal / pesoAnvisa`. Portanto a **"porção do cliente" tem o
+  papel de embalagem/porção comercial**. Fichas antigas guardam valores das fórmulas
+  anteriores (`pesoTotal/pesoPorcao` e `pesoTotal/pesoAnvisa`) — por isso a exibição
+  recalcula (BR-011) e o valor gravado pode divergir do exibido.
 
 ### BR-005b — ⚠ Assimetria entre cabeçalho e colunas (origem do B18)
 - **Descrição:** o cabeçalho do rótulo (peso da porção e número de porções) é

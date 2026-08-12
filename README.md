@@ -210,5 +210,6 @@ Roda também no CI, a cada push.
 - `docs/NEW_ARCHITECTURE.md` — arquitetura da nova versão e fases E1–E7
 - `docs/MIGRATION.md` — restauração do backup e saneamento
 - `docs/TESTING.md` — estratégia de paridade (golden dataset em `tests/golden/`)
+- `docs/BACKLOG_ETAPA1.md` — conformidade com o backlog da Etapa 1 (requisitos do cliente)
 - `docs/PARITY_MATRIX.md` — matriz de paridade Original × Novo
 - `docs/DECISIONS.md` — registro de decisões
