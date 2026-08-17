@@ -7,7 +7,8 @@ db.sqlite3
 staticfiles/
 media/
 .pytest_cache/
+.coverage
 
-# Backups locais (nunca versionar dados de cliente)
-backups/*
-!backups/LEIA-ME.md
+# Dumps e despejos de banco nunca entram no repositório (dados de cliente).
+*.sql
+*.dump

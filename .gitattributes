@@ -4,10 +4,6 @@
 # Scripts shell precisam de LF (CRLF quebra o shebang no bash/WSL).
 *.sh text eol=lf
 
-# Scripts do PowerShell precisam de CRLF; o BOM UTF-8 no conteúdo é obrigatório
-# para o Windows PowerShell 5.1 interpretar acentos corretamente.
-*.ps1 text eol=crlf
-
 # Dados binários não devem sofrer conversão.
 *.gz binary
 *.png binary

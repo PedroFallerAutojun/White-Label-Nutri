@@ -69,7 +69,7 @@ class Command(BaseCommand):
         if sem_tabela:
             self.stdout.write(
                 self.style.WARNING(
-                    f"  sem tabela (rode sanear_backup): {sem_tabela}"
+                    f"  sem tabela (abra e salve a ficha): {sem_tabela}"
                 )
             )
 

@@ -80,10 +80,11 @@ Sem a variável o teste é pulado, então a suíte continua verde em ambientes s
 - Autorização: rotas exigem login; ações admin exigem papel; mutações só por POST.
 - Upload TACO: arquivo de amostra com colunas reais, incluindo gordTrans = c52+c53.
 
-## 4. Testes de migração/saneamento
-- `sanear_backup` idempotente (2ª execução = no-op) sobre fixture derivada do backup.
-- S1: as 16 fichas órfãs abrem sem erro após saneamento.
-- Restauração ponta a ponta em CI com PostgreSQL 17 (quando disponível).
+## 4. Testes de provisionamento
+- `bootstrap_instancia`: cria configuração, administrador, grupo e chave de cadastro;
+  recusa instância já configurada e usuário existente.
+- Cenário de venda ponta a ponta: provisionar → cadastrar membro com a chave → entrar,
+  com o branding da instância na interface.
 
 ## 4b. Testes de segurança (D-013/D-014)
 `tests/integration/test_seguranca.py`: rotas e mutações exigem autenticação, CSRF bloqueia
