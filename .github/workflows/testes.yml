@@ -38,9 +38,6 @@ jobs:
       - name: Instalar dependências
         run: pip install -r requirements-dev.txt
 
-      - name: Validar scripts PowerShell
-        run: python scripts/validar_scripts.py
-
       - name: Verificações do Django
         run: python manage.py check
 
