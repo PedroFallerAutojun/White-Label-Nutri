@@ -1,10 +1,3 @@
-# Normalização de fim de linha por tipo de arquivo.
-* text=auto
-
-# Scripts shell precisam de LF (CRLF quebra o shebang no bash/WSL).
-*.sh text eol=lf
-
-# Dados binários não devem sofrer conversão.
-*.gz binary
-*.png binary
-*.svg text
+# Bibliotecas de terceiros entram byte a byte: converter fim de linha mudaria o
+# conteúdo dos arquivos minificados e sujaria os diffs sem necessidade.
+static/vendor/** -text

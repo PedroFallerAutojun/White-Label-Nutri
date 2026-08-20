@@ -5,6 +5,12 @@
   <div class="col-12 col-sm-8 col-md-5 col-lg-4">
     <div class="card shadow-sm mt-5">
       <div class="card-body p-4">
+        {% if instancia_logotipo_url %}
+          <div class="text-center mb-3">
+            <img src="{{ instancia_logotipo_url }}" alt="{{ instancia_nome }}"
+                 style="max-height:64px; max-width:100%">
+          </div>
+        {% endif %}
         <h1 class="h4 mb-4 text-center">{{ instancia_nome }}</h1>
         <form method="post" novalidate>
           {% csrf_token %}

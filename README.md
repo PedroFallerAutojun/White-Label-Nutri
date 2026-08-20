@@ -69,6 +69,16 @@ Suíte: **117 testes**. Detalhes em `docs/PARITY_MATRIX.md`.
 As variáveis de ambiente estão documentadas em `.env.example`. Em produção,
 `SECRET_KEY` e `ALLOWED_HOSTS` são obrigatórias — a aplicação falha no boot sem elas.
 
+## Identidade visual da empresa (white-label)
+
+Nome, cor e logotipo ficam em **Configuração da instância**, no Django admin
+(`/admin/`). O logotipo é guardado **no banco desta instância** — não em arquivo —
+porque plataformas de disco efêmero apagariam o upload no próximo restart.
+
+Aceita PNG, JPG ou WEBP até 1 MB, validados pelo conteúdo do arquivo. Aparece na
+tela de login e no topo do sistema. Para trocar, basta enviar outro; a marca antiga
+some do cache do navegador na hora.
+
 ## Documentação
 - `docs/REVERSE_ENGINEERING.md` — engenharia reversa do sistema original
 - `docs/BUSINESS_RULES.md` — regras de negócio (BR-001..BR-030)
