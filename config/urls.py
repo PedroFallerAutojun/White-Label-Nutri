@@ -3,9 +3,12 @@ from django.contrib import admin
 from django.urls import path
 
 from apps.fichas import views
+from apps.plataforma import views as views_plataforma
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    # Identidade visual da instância (guardada no banco — ver apps/plataforma).
+    path("branding/logotipo", views_plataforma.logotipo_instancia, name="logotipoInstancia"),
     # Autenticação
     path("", views.login_user, name="loginUser"),
     path("loginUser", views.login_user, name="loginUser"),

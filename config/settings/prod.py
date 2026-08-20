@@ -13,12 +13,21 @@ DEBUG = False
 # HTTPS / proxy (Heroku, Fly, Render e afins encerram TLS antes da aplicação)
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=True)  # noqa: F405
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
+
+# Padrão seguro. São variáveis para permitir a conferência em modo produção numa
+# máquina local, sobre http://localhost — com cookies "Secure" o navegador não os
+# envia por HTTP e o login não completa. NUNCA desligar num servidor real.
+SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE", default=True)  # noqa: F405
+CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE", default=True)  # noqa: F405
+
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
+
 CSRF_TRUSTED_ORIGINS = [f"https://{host}" for host in ALLOWED_HOSTS if host != "*"]
+if not SECURE_SSL_REDIRECT:
+    # Cenário de conferência local: o host também responde em http.
+    CSRF_TRUSTED_ORIGINS += [f"http://{host}" for host in ALLOWED_HOSTS if host != "*"]
 
 # HSTS — comece com um valor baixo e aumente após confirmar que todo o tráfego é HTTPS.
 SECURE_HSTS_SECONDS = env.int("SECURE_HSTS_SECONDS", default=3600)  # noqa: F405

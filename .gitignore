@@ -10,5 +10,11 @@ media/
 .coverage
 
 # Dumps e despejos de banco nunca entram no repositório (dados de cliente).
+# A pasta inteira é ignorada porque os backups do Heroku vêm SEM extensão
+# (ex.: "BackupNutriJR"), e as regras por extensão não os pegariam.
+backups/*
+!backups/LEIA-ME.md
 *.sql
 *.dump
+*.dump.gz
+*.backup
