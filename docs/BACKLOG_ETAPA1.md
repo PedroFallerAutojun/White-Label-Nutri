@@ -90,7 +90,7 @@ Dois pontos que a leitura do código sozinha não resolvia:
 
 | Item | Situação |
 |---|---|
-| 8.1 Publicar e verificar | 📋 operação. O que o código já oferece: `Procfile` com `release: migrate`, CI verde como pré-requisito, `sanear_backup --dry-run` antes de aplicar, e a suíte de paridade para rodar contra o backup antes de publicar |
+| 8.1 Publicar e verificar | 📋 operação. O que o código já oferece: `Procfile` com `release: migrate`, CI verde como pré-requisito, a preparação de MIGRATION.md §3, e a suíte de paridade para rodar contra o backup antes de publicar |
 
 ## Resumo
 

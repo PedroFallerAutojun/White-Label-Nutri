@@ -187,3 +187,32 @@ def test_nada_e_gravado_em_disco(configuracao, settings, tmp_path):
     assert not hasattr(settings, "MEDIA_ROOT") or not (
         tmp_path / "branding"
     ).exists()
+
+# ------------------------------------------- verificação da instância (W001)
+
+
+def test_check_avisa_quando_a_instancia_nao_esta_configurada(db):
+    """Sem configuração, o ano de corte fica vazio e a lista de ingredientes
+    volta a mostrar os itens antigos — falha silenciosa que o aviso denuncia."""
+    from apps.plataforma.checks import instancia_esta_configurada
+
+    assert not ConfiguracaoInstancia.objects.exists()
+    avisos = instancia_esta_configurada(None)
+    assert [a.id for a in avisos] == ["plataforma.W001"]
+    assert "ano de corte" in avisos[0].hint
+
+
+def test_check_silencia_quando_configurada(configuracao):
+    from apps.plataforma.checks import instancia_esta_configurada
+
+    assert instancia_esta_configurada(None) == []
+
+
+def test_check_aparece_no_manage_check(db, capsys):
+    from io import StringIO
+
+    from django.core.management import call_command
+
+    saida = StringIO()
+    call_command("check", stdout=saida, stderr=saida)
+    assert "plataforma.W001" in saida.getvalue()

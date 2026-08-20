@@ -24,37 +24,50 @@ pg_restore --no-owner --no-privileges -d nutri /tmp/backup-copia
 Com client ≤16, usar o conversor somente-leitura (`scripts/` — parser do formato custom
 que reconstrói schema_pre.sql + dados + schema_post.sql + seqs.sql), já testado.
 
-## 3. Saneamento pós-restauração (idempotente, com log)
+## 3. Preparação pós-restauração
 
-Executar UMA vez após restaurar, via comando de management `sanear_backup`:
+O comando `sanear_backup`, que fazia estes passos de uma vez, foi removido na limpeza
+de 17/08/2026. Não faz falta: o sistema resolve sozinho quase tudo o que ele fazia, e o
+que sobrou é uma tela de configuração. Segue o que precisa acontecer e como acontece hoje.
 
-| # | Ação | Motivo | Reversível |
-|---|------|--------|-----------|
-| S1 | Criar `Tabela` para as 16 fichas órfãs (IDs 1138–1151, 2733, 2734) com pk = ficha.pk e recalcular SOMENTE essas | B4 — hoje crasham (confirmado: DoesNotExist) | sim (delete) |
-| S2 | Colocar o usuário `admin` no grupo "administradores" | modelo de permissão novo | sim |
-| S3 | Sinalizar (não alterar) fichas com dataCriacao < 2019 (IDs com anos 2000/2006) | dados suspeitos | n/a |
-| S4 | Sinalizar fichas sem peso de porção — nulo **ou zero** (11 fichas no backup: 272, 771, 774, 1141, 1273, 1415, 1423, 1486, 4659, 5736, …) | B15: exibem “0 porções” em vez de erro 500 | n/a |
-| S5 | NÃO recalcular tabelas existentes | 45/50 divergem ao recalcular — os valores gravados são os rótulos emitidos (fonte de verdade histórica) | — |
-| S6 | (opcional) manter apenas a última linha de `fichas_chave` | higiene | sim |
-| S7 | Criar `ConfiguracaoInstancia` da instância Nutri Jr (`nome_exibicao="Nutri Jr"`, `ano_corte_ingredientes=2024`, D-010) | D-009 — instância por empresa | sim |
+| # | O que precisa acontecer | Como acontece hoje |
+|---|---|---|
+| S1 | As 16 fichas sem tabela (IDs 1138–1151, 2733, 2734) precisam abrir | **Automático.** `servicos.obter_tabela()` cria a tabela na primeira vez que a ficha é aberta |
+| S2 | Alguém precisa administrar membros (chave, senhas, exclusão) | **Verificar.** Quem é superusuário já administra. Confira quem é superusuário (comando abaixo). Se ninguém for, rode `createsuperuser` |
+| S3 | Conhecer fichas com data suspeita (2 no acervo: #98 em 2000, #5934 em 2006) | `manage.py auditar_tabelas` |
+| S4 | Conhecer fichas sem peso de porção (11 no acervo) | Exibem "0 porções" em vez de erro; `auditar_tabelas` as lista |
+| S5 | **NÃO** recalcular tabelas existentes | Nada recalcula sozinho. O recálculo é botão por ficha, na tela do rótulo (D-007/D-017) |
+| S6 | Chave de cadastro | A vigente aparece na tela de Membros, para quem é administrador |
+| S7 | **Criar a configuração da instância** | **Manual, e obrigatório** — veja abaixo |
 
-O comando `sanear_backup` implementa S1–S7, relata cada ação no terminal e aceita
-`--dry-run` para simular sem gravar. É idempotente (a segunda execução é um no-op).
+Para conferir quem administra (S2):
 
 ```bash
-python manage.py sanear_backup --dry-run    # relatório
-python manage.py sanear_backup             # aplica
+python manage.py shell -c "from django.contrib.auth.models import User; print(list(User.objects.filter(is_superuser=True).values_list('username', flat=True)))"
 ```
 
-**Execução validada sobre a cópia do backup (2026-08-11):**
-- S1: criadas as 16 tabelas faltantes (fichas 1138–1151, 2733, 2734);
-- S2: usuário `admin` promovido ao grupo `administradores`;
-- S3: 2 fichas com data anterior a 2019 sinalizadas (#98 em 2000, #5934 em 2006) — não alteradas;
-- S4: 11 fichas sem peso de porção sinalizadas;
-- S7: configuração da instância criada (Nutri Jr, corte 2024).
+### O passo que não pode ser esquecido (S7)
 
-Resultado: **as 1.574 fichas do acervo abrem sem erro** (no original, 17 davam 500) e a
-paridade dos rótulos permanece 1.557/1.557 — o saneamento não altera nenhum rótulo existente.
+Depois de restaurar, entre em `/admin/` → **Configuração da instância** e crie a linha:
+
+- **Nome da empresa:** `Nutri Jr`
+- **Ano de corte de ingredientes:** `2024`
+- Cor e logotipo, se a empresa quiser
+
+Sem essa linha o sistema assume os padrões, e o mais grave é o ano de corte ficar vazio:
+a lista de ingredientes volta a exibir a carga TACO de 2019, que a Nutri Jr esconde de
+propósito (BR-017/D-010). Nada quebra — por isso passaria despercebido.
+
+Para não depender da memória, o `manage.py check` avisa enquanto a configuração não
+existir (`plataforma.W001`), e o aviso aparece também no deploy:
+
+```
+?: (plataforma.W001) Esta instância não tem configuração white-label.
+   HINT: Crie em /admin/ → Configuração da instância ...
+```
+
+**Estado do acervo, medido em 2026-08-11:** as 1.574 fichas abrem sem erro (no sistema
+original, 17 davam 500) e a paridade dos rótulos é 1.557/1.557.
 
 ## 3b. Provisionar uma empresa nova (D-009)
 
