@@ -1,4 +1,4 @@
-"""Rotas — nomes preservados do sistema original para manter os fluxos conhecidos."""
+"""Rotas da aplicação."""
 from django.contrib import admin
 from django.urls import path
 

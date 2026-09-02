@@ -44,5 +44,5 @@ jobs:
       - name: Migrations sem pendências
         run: python manage.py makemigrations --check --dry-run
 
-      - name: Testes (inclui paridade contra o sistema original)
+      - name: Testes
         run: pytest -q

@@ -1,12 +1,11 @@
-"""Registro único dos 46 nutrientes do sistema (mata a repetição 46× do original).
+"""Registro único dos 46 nutrientes do sistema.
 
 Única fonte de verdade para: unidade padrão, referência de %VD (BR-008), limites
 de "declarável como zero" (BR-007), visibilidade padrão na tabela final, rótulo e
 ordem/indentação no rótulo ANVISA (BR-030).
 
-Valores extraídos do sistema original (models.Tabela defaults + views.attTabela +
-views.fichaX.montarTabelaFinal). NÃO alterar sem decisão em docs/DECISIONS.md —
-inclusive os já sabidamente questionáveis (ex.: selênio 11 mg, D-006/B9).
+NÃO alterar sem registrar a decisão em docs/ARQUITETURA.md: qualquer mudança
+aqui muda rótulos já emitidos aos clientes.
 """
 from dataclasses import dataclass
 
@@ -19,7 +18,7 @@ class NutrienteDef:
     mostrar_padrao: bool       # default de X_Mostrar
     rotulo: str | None         # texto no rótulo final; None = kcal/kJ (linha conjunta)
     ordem_rotulo: int | None   # posição em montarTabelaFinal; None = não tem linha própria
-    indentado: bool = False    # BR-030 (lista `identados` do original)
+    indentado: bool = False    # BR-030: linha exibida com recuo no rótulo
     limite_zero: float | None = None  # BR-007: valor ≤ limite → declarado 0
     vd_em_branco: bool = False  # BR-009: %VD exibido como "" (açúcares totais)
 
@@ -70,7 +69,9 @@ NUTRIENTES: tuple[NutrienteDef, ...] = (
     NutrienteDef("fluor", "mg", 4, False, "Flúor", 41),
     NutrienteDef("iodo", "μg", 150, False, "Iodo", 42),
     NutrienteDef("molibdenio", "μg", 45, False, "Molibdênio", 43),
-    NutrienteDef("selenio", "μg", 11, False, "Selenio", 44),  # 11 mantido (B9/D-006)
+    # A referência de %VD do selênio (11) diverge da IN 75/2020 (34 µg); mantida
+    # deliberadamente para não alterar rótulos já emitidos — ver BR-008.
+    NutrienteDef("selenio", "μg", 11, False, "Selenio", 44),
     NutrienteDef("colina", "mg", 550, False, "Colina", 45),
     NutrienteDef("acucaresTotais", "g", None, True, "Açúcares totais", 3,
                  indentado=True, vd_em_branco=True),
@@ -79,7 +80,7 @@ NUTRIENTES: tuple[NutrienteDef, ...] = (
 POR_CHAVE: dict[str, NutrienteDef] = {n.chave: n for n in NUTRIENTES}
 
 # Linhas do rótulo em ordem de exibição (BR-030). "Valor energético" só existe
-# se kcal E kJ estiverem marcados como mostrar (regra do original).
+# se kcal E kJ estiverem marcados como mostrar.
 ORDEM_ROTULO: tuple[NutrienteDef, ...] = tuple(
     sorted((n for n in NUTRIENTES if n.ordem_rotulo is not None),
            key=lambda n: n.ordem_rotulo)

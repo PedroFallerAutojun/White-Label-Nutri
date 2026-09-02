@@ -1,6 +1,6 @@
 # Prints — criação de uma nova receita (ficha técnica)
 
-Capturas do fluxo FL-01 (`docs/FLOWS.md`), feitas em uma instância limpa
+Capturas do fluxo de criação de uma ficha técnica, feitas em uma instância limpa
 ("Nutri Demo") com cinco ingredientes de exemplo da TACO. Receita usada:
 *Bolo de cenoura caseiro*, 1000 g de preparação, porção de 80 g.
 

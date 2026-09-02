@@ -3,10 +3,10 @@ from django.db import models
 
 
 class ConfiguracaoInstancia(models.Model):
-    """Configuração white-label desta instância (uma linha por banco — D-009/D-011).
+    """Configuração white-label desta instância (uma linha por banco).
 
     Cada empresa cliente roda com banco próprio; o que varia entre elas
-    fica aqui: identidade visual e regras configuráveis (D-010).
+    fica aqui: identidade visual e regras configuráveis.
     """
 
     nome_exibicao = models.CharField(
@@ -22,7 +22,7 @@ class ConfiguracaoInstancia(models.Model):
         null=True,
         help_text=(
             "Se preenchido, as listas de ingredientes só exibem os criados a partir "
-            "deste ano (comportamento da instância Nutri Jr: 2024 — BR-017/D-010)."
+            "deste ano — útil para esconder cargas antigas da base (BR-017)."
         ),
     )
     criada_em = models.DateTimeField(auto_now_add=True)

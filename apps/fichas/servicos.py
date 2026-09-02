@@ -1,8 +1,7 @@
 """Serviços de aplicação: ponte entre os models e o domínio puro.
 
-Substitui o attTabela/att100gIngrediente do original com o mesmo resultado
-(paridade garantida por tests/unit/test_paridade_calculo.py), mas em uma única
-transação com um único save por entidade.
+Lê a ficha e sua receita, chama o cálculo (apps/fichas/dominio/calculo.py) e
+grava o resultado na Tabela — tudo em uma transação, com um save por entidade.
 """
 import math
 
@@ -14,8 +13,7 @@ from apps.fichas.models import Ficha, Ficha_Ingrediente, Tabela
 
 
 def obter_tabela(ficha: Ficha) -> Tabela:
-    """BR-015: a Tabela de uma Ficha tem o MESMO pk (convenção do banco legado).
-    Cria se não existir (também sana fichas órfãs do backup — B4/S1)."""
+    """BR-015: a Tabela de uma Ficha tem o MESMO pk. Cria se não existir."""
     try:
         return Tabela.objects.get(pk=ficha.pk)
     except Tabela.DoesNotExist:
@@ -52,7 +50,7 @@ def recalcular_tabela(ficha: Ficha) -> Tabela:
         setattr(tabela, f"{chave}_100g", r.por_100g[chave])
         setattr(tabela, f"{chave}_Porcao", r.por_porcao[chave])
         setattr(tabela, f"{chave}_Arred", r.arredondado[chave])
-        if chave in r.vd:  # acucaresTotais_VD nunca é recalculado (original)
+        if chave in r.vd:  # acucaresTotais_VD nunca é recalculado (BR-009)
             setattr(tabela, f"{chave}_VD", r.vd[chave])
     tabela.save()
 
