@@ -46,7 +46,7 @@ class Migration(migrations.Migration):
                     "ano_corte_ingredientes",
                     models.PositiveIntegerField(
                         blank=True,
-                        help_text="Se preenchido, as listas de ingredientes só exibem os criados a partir deste ano (comportamento da instância Nutri Jr: 2024 — BR-017/D-010).",
+                        help_text="Se preenchido, as listas de ingredientes só exibem os criados a partir deste ano — útil para esconder cargas antigas da base (BR-017).",
                         null=True,
                         verbose_name="Ano de corte de ingredientes",
                     ),

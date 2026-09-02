@@ -40,7 +40,7 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = "same-origin"
 X_FRAME_OPTIONS = "DENY"
 
-# Sessão expira em 12 h de inatividade (o original nunca expirava).
+# Sessão expira em 12 h de inatividade.
 SESSION_COOKIE_AGE = env.int("SESSION_COOKIE_AGE", default=12 * 60 * 60)  # noqa: F405
 SESSION_SAVE_EVERY_REQUEST = True
 

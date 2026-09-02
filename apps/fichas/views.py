@@ -1,12 +1,10 @@
-"""Views do sistema — portadas do original com paridade funcional.
+"""Views do sistema.
 
-Diferenças intencionais (D-005), todas de segurança e não de comportamento:
-- toda mutação exige login e método POST (o original expunha várias por GET
-  sem autenticação — B10);
-- ausência de registro devolve 404 em vez de 500 (get_object_or_404);
-- B1/B2/B3/B4/B5/B7/B12/B15/B16 corrigidos (ver docs/FUTURE_IMPROVEMENTS.md).
+Convenções: toda mutação exige login e método POST; registro inexistente
+devolve 404 (get_object_or_404); o papel administrativo vem do grupo Django
+configurado em GRUPO_ADMINISTRADORES.
 
-Regras de negócio: ver docs/BUSINESS_RULES.md (BR-XXX citadas no código).
+Regras de negócio: ver docs/REGRAS_DE_NEGOCIO.md (BR-XXX citadas no código).
 """
 import csv
 import io
@@ -201,7 +199,7 @@ def deletar_item_receita(request, pk, id):
 
 @login_required
 def editar_item_receita(request, pk, id):
-    """Edita um item da receita. Salvar recalcula a tabela (corrige B12)."""
+    """Edita um item da receita; salvar recalcula a tabela."""
     ficha = get_object_or_404(Ficha, pk=pk)
     item = get_object_or_404(Ficha_Ingrediente, pk=id, ficha=ficha)
     form = ReceitaForm(request.POST or None, instance=item)
@@ -280,7 +278,7 @@ def atualizar_mostrar(request, pk, item):
 def ficha_x(request, pk):
     """Rótulo final (BR-009..BR-014, BR-030)."""
     ficha = get_object_or_404(Ficha, pk=pk)
-    tabela = servicos.obter_tabela(ficha)  # B4: cria se faltar em vez de 500
+    tabela = servicos.obter_tabela(ficha)  # cria a tabela se estiver faltando
 
     valores = {
         n.chave: rotulo.ValoresNutriente(
@@ -345,7 +343,7 @@ def recalcular_ficha(request, pk):
     """Recalcula a tabela de UMA ficha, por acao explicita do usuario.
 
     Existe porque o acervo tem fichas cuja tabela foi gravada com pesos ou
-    ingredientes diferentes dos atuais (ver docs/FUTURE_IMPROVEMENTS.md, B18).
+    ingredientes diferentes dos atuais (BR-005b).
     Nunca acontece em massa: os valores gravados sao os rotulos emitidos (D-007).
     """
     ficha = get_object_or_404(Ficha, pk=pk)
@@ -383,7 +381,7 @@ def deletar_ficha(request, pk):
 
 
 def eh_administrador(user) -> bool:
-    """Papel administrativo da instância (substitui username == 'admin' — B10)."""
+    """Papel administrativo da instância, definido por grupo do Django."""
     return user.is_authenticated and (
         user.is_superuser or user.groups.filter(name=settings.GRUPO_ADMINISTRADORES).exists()
     )
@@ -394,7 +392,7 @@ administrador_requerido = user_passes_test(eh_administrador, login_url="loginUse
 
 def registrar_membro(request):
     """BR-024 — auto-cadastro protegido pela chave da instância."""
-    logout(request)  # o original desloga antes de exibir o formulário
+    logout(request)  # BR-027: abrir a tela encerra a sessão atual
     form = MembroForm(request.POST or None)
     if form.is_valid():
         with transaction.atomic():
@@ -507,7 +505,7 @@ def lista_ingredientes(request):
     ingredientes = _ingredientes_disponiveis().select_related("autorIng")
     form_filtro = IngredienteFiltroForm(request.GET or None)
     if form_filtro.is_valid():
-        # B11 corrigido: o filtro respeita o mesmo recorte da listagem
+        # o filtro respeita o mesmo recorte da listagem (BR-017)
         ingredientes = ingredientes.filter(
             Q(nomeIng__icontains=form_filtro.cleaned_data["f_nomeIng"])
             & Q(origemDosDados__icontains=form_filtro.cleaned_data["f_origemDosDados"])
@@ -554,7 +552,7 @@ def registrar_ingrediente(request):
         else:
             ingrediente = form.save(commit=False)
             servicos.normalizar_100g(ingrediente)
-            ingrediente.save()  # B5 corrigido (o original tinha `ing.save` sem chamar)
+            ingrediente.save()
             messages.success(request, f"Ingrediente {ingrediente.nomeIng} cadastrado.")
             return redirect("listaIngredientes")
     return render(
@@ -583,7 +581,7 @@ def editar_ingrediente(request, pk):
             atualizado = form.save(commit=False)
             servicos.normalizar_100g(atualizado)
             atualizado.save()
-            # BR-013/B13 (D-006): fichas existentes NÃO são recalculadas.
+            # D-007: fichas existentes NÃO são recalculadas.
             messages.success(request, "Ingrediente atualizado.")
             return redirect("listaIngredientes")
     return render(

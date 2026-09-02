@@ -1,13 +1,10 @@
-"""Montagem do rótulo ANVISA (BR-009..BR-014, BR-030) — porta fiel da fichaX.
+"""Montagem do rótulo ANVISA (BR-009..BR-014, BR-030).
 
-Diferenças INTENCIONAIS em relação ao original (D-005, registradas):
-- B2 corrigido: Biotina usa biotina_Arred (o original crashava com Biotina_Arred);
-- B3 corrigido: a coluna "por 100 g" do Manganês usa manganes_100g
-  (o original mostrava magnesio_100g);
-- B15 corrigido: pesos de porção ausentes não crasham (retorna 0).
-
-Todo o resto reproduz o original à risca — validado por
-tests/integration/test_paridade_rotulo.py contra o golden de 1.557 fichas.
+Transforma os valores gravados na Tabela nas linhas exibidas no rótulo: ordem,
+indentação, formatação numérica, %VD, lupas de advertência e lista de
+ingredientes. O formato é regulado (RDC 429/2020 e IN 75/2020) e não é
+personalizável por instância — ver docs/REGRAS_DE_NEGOCIO.md. A montagem é
+conferida contra 1.557 rótulos reais em tests/unit/test_paridade_rotulo.py.
 """
 from dataclasses import dataclass
 
@@ -57,7 +54,7 @@ def calcular_num_porcoes(peso_porcao, peso_anvisa) -> str:
 
 
 def peso_anvisa_sem_zero(peso_anvisa, peso_porcao):
-    """Peso da porção exibido no cabeçalho (B15 corrigido: ausente → 0)."""
+    """Peso da porção exibido no cabeçalho; peso ausente vira 0 (nunca falha)."""
     peso = peso_anvisa or peso_porcao
     return tira_zero(int(peso)) if peso else 0
 
@@ -116,7 +113,7 @@ def montar_linhas(
     valores: dict[str, ValoresNutriente],
     extras: list[tuple[str, float, int | None]] | None = None,
 ) -> list[list]:
-    """Linhas da tabela final na ordem/formato exatos do original.
+    """Linhas da tabela final na ordem e no formato do rótulo ANVISA.
 
     Formato: [rótulo, valor porção formatado, %VD, unidade, valor 100 g formatado];
     linhas de nutrientes extras têm 3 posições: [nome, quantidade, %VD].

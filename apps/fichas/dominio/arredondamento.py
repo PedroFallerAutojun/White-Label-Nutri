@@ -1,8 +1,7 @@
-"""Arredondamento ANVISA (BR-006/BR-007) — porta fiel do sistema original.
+"""Arredondamento ANVISA (BR-006/BR-007).
 
-Fonte: Nutri_Jr/fichas/views.py (round_half_down, arredondaNutriente_ANVISA).
-Qualquer mudança aqui quebra a paridade com os rótulos já emitidos — não
-"corrigir" sem decisão registrada em docs/DECISIONS.md.
+Qualquer mudança aqui altera rótulos já emitidos aos clientes — não
+"corrigir" sem decisão registrada em docs/REGRAS_DE_NEGOCIO.md.
 """
 import math
 

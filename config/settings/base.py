@@ -101,12 +101,12 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = env.int("DATA_UPLOAD_MAX_MEMORY_SIZE", default=5 *
 FILE_UPLOAD_MAX_MEMORY_SIZE = DATA_UPLOAD_MAX_MEMORY_SIZE
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 2000  # o formulário de ingrediente tem ~55 campos
 
-# O banco legado usa PKs integer (AutoField) — não mudar (D-003/D-012).
+# PKs integer (AutoField): o schema do banco depende disso — não mudar.
 DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
 
 LOGIN_URL = "loginUser"
 LOGIN_REDIRECT_URL = "listaFichas"
 LOGOUT_REDIRECT_URL = "loginUser"
 
-# Grupo com privilégios administrativos da instância (substitui username=='admin' — B10)
+# Grupo com privilégios administrativos da instância
 GRUPO_ADMINISTRADORES = "administradores"

@@ -1,4 +1,4 @@
-"""Formulários — portados do original com os mesmos campos, labels e validações."""
+"""Formulários das telas de ficha, receita, ingrediente e membro."""
 from django import forms
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
@@ -198,7 +198,7 @@ class MembroForm(forms.ModelForm):
                 "senha2", "As senhas não conferem. Não foi possível realizar o cadastro."
             )
         elif dados.get("senha1"):
-            # Força mínima de senha (D-013) — o original aceitava qualquer senha.
+            # Força mínima de senha: usa os validadores do Django (AUTH_PASSWORD_VALIDATORS).
             try:
                 validate_password(dados["senha1"])
             except forms.ValidationError as erro:

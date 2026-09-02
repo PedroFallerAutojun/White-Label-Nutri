@@ -1,11 +1,14 @@
 # White-Label-Nutri
 
-Reimplementação do sistema **Nutri Jr** (fichas técnicas e tabelas nutricionais ANVISA)
-como produto white-label: **uma instância por empresa**, cada cliente com banco de
-dados e hospedagem próprios (ver `docs/DECISIONS.md`, D-009).
+Sistema de **fichas técnicas de preparações e tabelas nutricionais no padrão ANVISA**,
+entregue como produto white-label: **uma instância por empresa**, cada cliente com banco
+de dados e hospedagem próprios.
+
+O que o sistema faz e para quem: [docs/VISAO_GERAL.md](docs/VISAO_GERAL.md).
 
 ## Stack
-Django 5.2 LTS · PostgreSQL · Bootstrap 5 · pytest — detalhes em `docs/NEW_ARCHITECTURE.md`.
+Django 5.2 LTS · PostgreSQL · Bootstrap 5 · pytest — detalhes em
+[docs/ARQUITETURA.md](docs/ARQUITETURA.md).
 
 ## Rodando localmente
 
@@ -35,7 +38,7 @@ um arquivo da TACO (TXT separado por TAB), ou cadastre um a um.
 pytest -q
 ```
 Precisam de um PostgreSQL acessível pela `DATABASE_URL` — o pytest-django cria e
-destrói o banco de teste sozinho. Estratégia e cobertura em `docs/TESTING.md`.
+destrói o banco de teste sozinho. Cobertura por camada em [docs/TESTES.md](docs/TESTES.md).
 
 ## Provisionar uma empresa nova
 ```bash
@@ -45,29 +48,20 @@ DATABASE_URL=postgres://.../nutri_acme python manage.py bootstrap_instancia \
     --nome "Nutri Acme" --admin ana --email ana@acme.com --chave ACME-2026
 ```
 
-O deploy de cada empresa é independente (D-009): banco próprio, variáveis próprias.
-O `Procfile` já traz o `migrate` de release e o gunicorn.
+O deploy de cada empresa é independente: banco próprio, variáveis próprias. O `Procfile`
+já traz o `migrate` de release e o gunicorn — passo a passo em
+[docs/OPERACAO.md](docs/OPERACAO.md).
 
 ## Manutenção da base
 ```bash
 python manage.py auditar_tabelas            # fichas com tabela defasada ou incoerente
-python manage.py auditar_tabelas --limite 20
+python manage.py auditar_tabelas --limite 0 --detalhar
 ```
 
-## Status
-Etapas concluídas: E1 (fundação), E2 (cálculo e rótulo com paridade validada),
-E3/E4 (telas do wizard, ingredientes, upload e rótulo final), E5 (membros e
-administração), E6 (provisionamento de instâncias).
-
-E7 (segurança, performance e documentação de paridade) concluída.
-
-Paridade com o sistema original: **1.557/1.557 rótulos idênticos**; após o
-saneamento, **as 1.574 fichas do acervo abrem sem erro** (17 davam 500 no original).
-Suíte: **117 testes**. Detalhes em `docs/PARITY_MATRIX.md`.
-
 ## Configuração
-As variáveis de ambiente estão documentadas em `.env.example`. Em produção,
-`SECRET_KEY` e `ALLOWED_HOSTS` são obrigatórias — a aplicação falha no boot sem elas.
+As variáveis de ambiente estão documentadas em `.env.example` e em
+[docs/OPERACAO.md](docs/OPERACAO.md). Em produção, `SECRET_KEY` e `ALLOWED_HOSTS` são
+obrigatórias — a aplicação falha no boot sem elas.
 
 ## Identidade visual da empresa (white-label)
 
@@ -80,11 +74,10 @@ tela de login e no topo do sistema. Para trocar, basta enviar outro; a marca ant
 some do cache do navegador na hora.
 
 ## Documentação
-- `docs/REVERSE_ENGINEERING.md` — engenharia reversa do sistema original
-- `docs/BUSINESS_RULES.md` — regras de negócio (BR-001..BR-030)
-- `docs/NEW_ARCHITECTURE.md` — arquitetura da nova versão e fases E1–E7
-- `docs/MIGRATION.md` — restauração do backup e saneamento
-- `docs/TESTING.md` — estratégia de paridade (golden dataset em `tests/golden/`)
-- `docs/BACKLOG_ETAPA1.md` — conformidade com o backlog da Etapa 1 (requisitos do cliente)
-- `docs/PARITY_MATRIX.md` — matriz de paridade Original × Novo
-- `docs/DECISIONS.md` — registro de decisões
+- [docs/VISAO_GERAL.md](docs/VISAO_GERAL.md) — o produto, o modelo white-label e o índice
+- [docs/ARQUITETURA.md](docs/ARQUITETURA.md) — stack, estrutura do código, segurança, decisões
+- [docs/REGRAS_DE_NEGOCIO.md](docs/REGRAS_DE_NEGOCIO.md) — BR-001..BR-030 (cálculo, rótulo, fichas)
+- [docs/BANCO_DE_DADOS.md](docs/BANCO_DE_DADOS.md) — modelo de dados e invariantes
+- [docs/INTERFACE.md](docs/INTERFACE.md) — as telas, com capturas
+- [docs/OPERACAO.md](docs/OPERACAO.md) — provisionar, publicar, configurar e manter
+- [docs/TESTES.md](docs/TESTES.md) — como rodar a suíte e o que ela cobre

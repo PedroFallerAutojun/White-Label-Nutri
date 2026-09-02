@@ -1,17 +1,19 @@
 """Pipeline de cálculo da tabela nutricional (BR-001..BR-010).
 
-Porta fiel do `attTabela` original (Nutri_Jr/fichas/views.py) como função pura:
-mesma ordem de operações, mesmas condições — inclusive os comportamentos
-questionáveis preservados por decisão (D-005/D-007):
+Função pura, sem Django: recebe os pesos da ficha e os itens da receita e
+devolve os valores totais, por 100 g, por porção, arredondados e o %VD.
 
-- B8: o valor por 100 g é sobrescrito pelo arredondado ao final;
-- B6: a condição de zerar gorduras totais POR PORÇÃO usa o gordPoli TOTAL
-  (quirk do original), enquanto a por 100 g usa gordPoli_100g;
-- %VD calculado sobre o valor JÁ arredondado, com round() do Python;
-- acucaresTotais_VD NÃO é recalculado (o original nunca o atualiza).
+Particularidades do pipeline, todas deliberadas (docs/REGRAS_DE_NEGOCIO.md):
 
-A paridade com o original é garantida por tests/integration/test_paridade_calculo.py
-contra o oráculo tests/golden/golden_paridade.json.gz (1.556 fichas).
+- o valor por 100 g gravado é o ARREDONDADO — é ele que vai ao rótulo;
+- a condição de zerar gorduras totais por porção usa o gordPoli total,
+  enquanto a de 100 g usa gordPoli_100g;
+- o %VD é calculado sobre o valor já arredondado;
+- acucaresTotais_VD nunca é recalculado (a linha sai em branco no rótulo).
+
+Mudanças aqui alteram rótulos já emitidos: leia BR-006/BR-008 antes e rode
+tests/unit/test_paridade_calculo.py, que confere o pipeline contra 1.556 fichas
+reais (docs/TESTES.md).
 """
 from dataclasses import dataclass, field
 
@@ -49,8 +51,8 @@ class ResultadoCalculo:
 def calcular(
     entrada: EntradaCalculo, unidades: dict[str, str] | None = None
 ) -> ResultadoCalculo:
-    """`unidades` permite usar as unidades GRAVADAS na tabela (o original arredonda
-    com tabela.X_unidadeMd); sem override, usa os defaults do registro."""
+    """`unidades` permite arredondar com as unidades GRAVADAS na tabela
+    (tabela.X_unidadeMd); sem override, usa os defaults do registro."""
     r = ResultadoCalculo()
 
     # BR-002 — soma da receita por peso líquido (energia fica de fora: BR-003)
@@ -81,8 +83,8 @@ def calcular(
     for chave in CHAVES:
         r.por_porcao[chave] = (r.por_100g[chave] / 100) * peso_porcao
 
-    # BR-006/BR-007 — arredondamento com condições de zero, na MESMA ordem do
-    # original (as condições leem por_100g/por_porcao antes da reescrita B8)
+    # BR-006/BR-007 — arredondamento com condições de zero. A ordem importa:
+    # as condições leem por_100g/por_porcao ANTES de o por_100g ser reescrito.
     p = r.por_porcao
     c = r.por_100g
 
@@ -93,7 +95,7 @@ def calcular(
     condicoes["proteinas"] = zera("proteinas", 0.5)
     condicoes["gordTotais"] = (
         p["gordTotais"] <= 0.5 and p["gordSat"] <= 0.5 and p["gordTrans"] <= 0.5
-        and p["gordMono"] == 0 and r.total["gordPoli"] == 0,  # quirk B6 preservado
+        and p["gordMono"] == 0 and r.total["gordPoli"] == 0,  # total, não por porção
         c["gordTotais"] <= 0.5 and c["gordSat"] <= 0.5 and c["gordTrans"] <= 0.5
         and c["gordMono"] == 0 and c["gordPoli"] == 0,
     )
@@ -111,7 +113,8 @@ def calcular(
     for chave in CHAVES:
         cond_porcao, cond_100g = condicoes[chave]
         r.arredondado[chave] = arredonda_anvisa(cond_porcao, p[chave], unidade[chave])
-        r.por_100g[chave] = arredonda_anvisa(cond_100g, c[chave], unidade[chave])  # B8
+        # o por 100 g gravado passa a ser o arredondado (BR-006)
+        r.por_100g[chave] = arredonda_anvisa(cond_100g, c[chave], unidade[chave])
 
     # BR-010 — dados da ficha
     soma = 0.0
@@ -123,10 +126,10 @@ def calcular(
     else:
         r.num_porcoes = 0
 
-    # BR-008 — %VD sobre o arredondado (round() do Python, como o original)
+    # BR-008 — %VD sobre o valor já arredondado
     for n in NUTRIENTES:
         if n.chave == "acucaresTotais":
-            continue  # nunca recalculado pelo original
+            continue  # açúcares totais saem sem %VD no rótulo (BR-009)
         if n.vd_referencia is None:
             r.vd[n.chave] = 0
         else:
