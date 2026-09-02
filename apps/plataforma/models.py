@@ -1,5 +1,15 @@
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
+
+# Limite do arquivo de logotipo. Serve para não carregar imagens enormes em cada
+# requisição e para manter a linha de configuração pequena.
+TAMANHO_MAXIMO_LOGOTIPO = 1024 * 1024  # 1 MB
+FORMATOS_LOGOTIPO = {
+    "PNG": "image/png",
+    "JPEG": "image/jpeg",
+    "WEBP": "image/webp",
+}
 
 
 class ConfiguracaoInstancia(models.Model):
@@ -12,7 +22,19 @@ class ConfiguracaoInstancia(models.Model):
     nome_exibicao = models.CharField(
         "Nome da empresa", max_length=120, default="Nutri White-Label"
     )
-    logotipo = models.ImageField(upload_to="branding/", blank=True, null=True)
+
+    # O logotipo fica NO BANCO, não em arquivo. Plataformas como Heroku, Render e
+    # Fly usam disco efêmero: um arquivo enviado pelo cliente desapareceria no
+    # próximo restart. Como cada empresa tem banco próprio, guardar aqui faz a
+    # identidade visual viajar junto com os dados e sobreviver a qualquer deploy.
+    logotipo_dados = models.BinaryField(
+        "Logotipo (conteúdo)", blank=True, null=True, editable=False
+    )
+    logotipo_tipo = models.CharField(
+        "Logotipo (tipo)", max_length=40, blank=True, editable=False
+    )
+    logotipo_atualizado_em = models.DateTimeField(blank=True, null=True, editable=False)
+
     cor_primaria = models.CharField(
         "Cor primária (hex)", max_length=7, default="#198754"
     )
@@ -41,3 +63,17 @@ class ConfiguracaoInstancia(models.Model):
     @classmethod
     def atual(cls):
         return cls.objects.first()
+
+    @property
+    def tem_logotipo(self) -> bool:
+        return bool(self.logotipo_dados)
+
+    def definir_logotipo(self, conteudo: bytes, tipo: str) -> None:
+        self.logotipo_dados = conteudo
+        self.logotipo_tipo = tipo
+        self.logotipo_atualizado_em = timezone.now()
+
+    def remover_logotipo(self) -> None:
+        self.logotipo_dados = None
+        self.logotipo_tipo = ""
+        self.logotipo_atualizado_em = None

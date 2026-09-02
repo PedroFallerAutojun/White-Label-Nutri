@@ -91,8 +91,9 @@ STORAGES = {
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
 }
 
-MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+# Não há upload em disco: o único arquivo enviado pelo cliente é o logotipo, e ele
+# fica no banco (apps/plataforma/models.py). Isso evita perder a identidade visual
+# em plataformas de disco efêmero, como Heroku, Render e Fly.
 
 # O upload de ingredientes é um TXT pequeno; o limite evita consumo de memória
 # e uploads acidentais de arquivos grandes (BR-023).

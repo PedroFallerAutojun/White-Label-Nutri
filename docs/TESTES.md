@@ -1,7 +1,7 @@
 # Testes
 
 ```bash
-pytest -q                       # suíte completa (114 testes; 1 pulado — ver paridade)
+pytest -q                       # suíte completa (131 testes; 1 pulado — ver paridade)
 pytest tests/unit -q            # só o domínio (rápido)
 pytest -q -k rotulo             # por nome
 ```
@@ -37,6 +37,11 @@ recusada; o fluxo de reset por e-mail não está exposto; e as garantias de
 
 **`tests/integration/test_fundacao.py` (7 testes).**
 Models, migrations sem pendências, configuração da instância e branding no layout.
+
+**`tests/integration/test_logotipo.py` (17 testes).**
+Envio do logotipo pelo admin (formatos aceitos, limite de 1 MB, validação por conteúdo e
+não por extensão), remoção, a rota pública `/branding/logotipo` com `Last-Modified` e 304,
+e a exibição na barra superior e na tela de login.
 
 **`tests/integration/test_comandos.py` (4 testes).**
 `bootstrap_instancia`: provisionamento completo, recusa de instância já configurada e de

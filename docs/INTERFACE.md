@@ -72,7 +72,9 @@ vez (BR-023).
 - **`/registrarMembro`** — auto-cadastro com a chave da instância.
 - **`/ajuda`** — instruções de uso para a equipe.
 - **`/admin/`** — Django admin, restrito a superusuários; é onde se edita a
-  **Configuração da instância** (nome, logotipo, cor, ano de corte).
+  **Configuração da instância** (nome, cor, ano de corte) e se envia o logotipo, com
+  prévia e opção de remover. O logotipo aparece na barra superior e na tela de login,
+  servido por `/branding/logotipo`.
 
 As capturas completas de cada fluxo estão em `docs/imagens/criacao-receita/` e
 `docs/imagens/cadastro-ingrediente/`, com legenda no `LEIA-ME.md` de cada pasta.

@@ -53,8 +53,12 @@ ingredientes cadastrados. Pertence a uma tabela.
 **fichas_chave** — chave de auto-cadastro. A aplicação sempre usa a **última** linha;
 trocar a chave insere uma nova, preservando o histórico.
 
-**plataforma_configuracaoinstancia** — uma única linha: nome de exibição, logotipo, cor
-primária e o ano de corte de ingredientes.
+**plataforma_configuracaoinstancia** — uma única linha, com a identidade da instância:
+nome de exibição, cor primária, ano de corte de ingredientes e o **logotipo guardado no
+próprio banco** (conteúdo binário, tipo do arquivo e data de atualização). O logotipo fica
+no banco porque as plataformas de deploy usam disco efêmero — um arquivo enviado pelo
+cliente sumiria no próximo restart (D-020). Ele é enviado pelo Django admin e servido em
+`/branding/logotipo`.
 
 ## Invariantes e pontos de atenção
 

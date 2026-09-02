@@ -34,7 +34,25 @@ Opções úteis:
 | `--ano-corte 2024` | esconde ingredientes cadastrados antes desse ano (0 = sem corte, padrão) |
 
 Depois disso: a equipe se cadastra em `/registrarMembro` com a chave, e o administrador
-ajusta logotipo e cores em `/admin/` → *Configuração da instância*.
+ajusta cores e logotipo em `/admin/` → *Configuração da instância*. O logotipo é enviado
+como arquivo (PNG, JPEG ou WEBP até 1 MB), guardado no banco e servido em
+`/branding/logotipo` — aparece na barra superior e na tela de login.
+
+### A instância precisa ter configuração
+
+Sem a linha de configuração o sistema assume os padrões, e o mais silencioso deles é o ano
+de corte vazio: a lista de ingredientes passa a exibir cargas antigas que a empresa talvez
+esconda de propósito (BR-017). Nada quebra — por isso passaria despercebido.
+
+Para não depender da memória, `manage.py check` avisa enquanto ela não existir, e o aviso
+aparece também no deploy:
+
+```
+?: (plataforma.W001) Esta instância não tem configuração white-label.
+```
+
+O `bootstrap_instancia` já cria a linha; o aviso serve para bancos que chegaram por outro
+caminho.
 
 ## Publicar
 
@@ -64,6 +82,8 @@ no build se o seu provedor não o fizer.
 | `SECURE_HSTS_INCLUDE_SUBDOMAINS` | não | só ligue se **todos** os subdomínios servirem HTTPS |
 | `SESSION_COOKIE_AGE` | não | padrão 12 h |
 | `CONN_MAX_AGE` | não | padrão 60 s |
+| `SESSION_COOKIE_SECURE` | não | padrão ligado; só desligue para testar em `localhost` |
+| `CSRF_COOKIE_SECURE` | não | idem |
 
 Em desenvolvimento, um arquivo `.env` na raiz substitui as variáveis exportadas —
 modelo em `.env.example`.

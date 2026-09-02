@@ -22,7 +22,10 @@ próprio se resume à cópia do rótulo para a área de transferência.
 White-Label-Nutri/
 ├── config/                  # settings (base/dev/prod), urls, wsgi
 ├── apps/
-│   ├── plataforma/          # ConfiguracaoInstancia (branding) e comandos de gestão
+│   ├── plataforma/          # identidade da instância e comandos de gestão
+│   │   ├── models.py        #   ConfiguracaoInstancia (nome, cor, logotipo, ano de corte)
+│   │   ├── views.py         #   /branding/logotipo — serve o logotipo guardado no banco
+│   │   └── checks.py        #   aviso plataforma.W001 (instância sem configuração)
 │   └── fichas/              # domínio do produto
 │       ├── models.py        #   Membro, Ingrediente, Ficha, Tabela, Ficha_Ingrediente…
 │       ├── views.py         #   todas as telas
@@ -73,6 +76,12 @@ de segurança. Tudo o que varia entre instâncias vem de variável de ambiente o
 - Em produção: HTTPS forçado, cookies `Secure`/`HttpOnly`/`SameSite=Lax`, HSTS de 1 h por
   padrão, `X-Frame-Options: DENY`, `nosniff`, sessão expirando em 12 h de inatividade e
   upload limitado a 5 MB.
+- `SESSION_COOKIE_SECURE` e `CSRF_COOKIE_SECURE` são variáveis com padrão ligado. Só se
+  desligam para conferir o modo produção numa máquina local sobre `http://localhost`, onde
+  o navegador não envia cookies `Secure` e o login nunca completa. Em servidor real, ficam
+  ligados.
+- O logotipo é validado pelo conteúdo do arquivo, não pela extensão: PNG, JPEG ou WEBP até
+  1 MB.
 - `HSTS includeSubDomains`/`preload` ficam **desligados** por padrão: o efeito é difícil de
   reverter e afeta todos os subdomínios do cliente. Habilite por variável de ambiente
   quando tiver certeza de que todo o domínio serve HTTPS.
@@ -97,3 +106,6 @@ implementação.
 | D-016 | Bootstrap servido pela aplicação (`static/vendor/`), sem CDN: funciona offline e não expõe requisições dos clientes a terceiros. |
 | D-017 | Tabela desatualizada é **detectada e avisada**, nunca recalculada em silêncio: a tela do rótulo compara o gravado com o cálculo atual e oferece um botão de recálculo explícito, ficha a ficha. |
 | D-018 | Número de porções = peso da porção do cliente ÷ peso da porção ANVISA (quantas porções ANVISA cabem na embalagem). |
+| D-020 | O logotipo da empresa é guardado **no banco**, não em arquivo, e servido por `/branding/logotipo` com `Last-Modified`. Heroku, Render e Fly usam disco efêmero: um arquivo enviado pelo cliente sumiria no próximo restart. Como cada empresa tem banco próprio, a identidade visual viaja junto com os dados. |
+| D-021 | `SESSION_COOKIE_SECURE` e `CSRF_COOKIE_SECURE` são configuráveis, com padrão ligado, para permitir conferir o modo produção em `localhost`. |
+| D-022 | Não existe comando de saneamento de base. As fichas sem tabela ganham uma ao serem abertas, os relatórios estão no `auditar_tabelas` e a configuração da instância se cria pelo `bootstrap_instancia` ou pelo admin — com a verificação `plataforma.W001` avisando enquanto ela não existir. |

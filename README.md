@@ -63,6 +63,16 @@ As variáveis de ambiente estão documentadas em `.env.example` e em
 [docs/OPERACAO.md](docs/OPERACAO.md). Em produção, `SECRET_KEY` e `ALLOWED_HOSTS` são
 obrigatórias — a aplicação falha no boot sem elas.
 
+## Identidade visual da empresa (white-label)
+
+Nome, cor e logotipo ficam em **Configuração da instância**, no Django admin
+(`/admin/`). O logotipo é guardado **no banco desta instância** — não em arquivo —
+porque plataformas de disco efêmero apagariam o upload no próximo restart.
+
+Aceita PNG, JPG ou WEBP até 1 MB, validados pelo conteúdo do arquivo. Aparece na
+tela de login e no topo do sistema. Para trocar, basta enviar outro; a marca antiga
+some do cache do navegador na hora.
+
 ## Documentação
 - [docs/VISAO_GERAL.md](docs/VISAO_GERAL.md) — o produto, o modelo white-label e o índice
 - [docs/ARQUITETURA.md](docs/ARQUITETURA.md) — stack, estrutura do código, segurança, decisões
