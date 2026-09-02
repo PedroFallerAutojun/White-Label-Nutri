@@ -1,8 +1,18 @@
-"""Testes do núcleo de domínio: arredondamento ANVISA e registro de nutrientes."""
+"""Testes do núcleo de domínio: arredondamento ANVISA e registro de nutrientes.
+
+Inclui verificação cruzada com o golden dataset (rótulos e ordem das linhas
+produzidas pelo sistema original — D-008).
+"""
+import gzip
+import json
+from pathlib import Path
+
 import pytest
 
 from apps.fichas.dominio.arredondamento import arredonda_anvisa, round_half_down
 from apps.fichas.dominio.nutrientes import NUTRIENTES, ORDEM_ROTULO, POR_CHAVE
+
+GOLDEN = Path(__file__).resolve().parent.parent / "golden" / "golden_fichax.json.gz"
 
 
 # --- BR-006: round_half_down -------------------------------------------------
@@ -66,3 +76,42 @@ def test_indentados_batem_com_original():
         "Gorduras Trans", "Gorduras monosaturadas", "Gorduras polissaturadas",
         "Colesterol",
     }
+
+
+# --- Verificação cruzada com o golden dataset (D-008) -------------------------
+@pytest.fixture(scope="module")
+def golden():
+    with gzip.open(GOLDEN, "rt", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def test_golden_rotulos_sao_subconjunto_do_registro(golden):
+    conhecidos = {n.rotulo for n in ORDEM_ROTULO}
+    # linhas de 5 posições vêm do registro; as de 3 são nutrientes extras manuais
+    usados = {
+        linha[0]
+        for ficha in golden["fichas"].values()
+        for linha in ficha["linhas"]
+        if len(linha) > 3
+    }
+    assert usados <= conhecidos, f"rótulos fora do registro: {usados - conhecidos}"
+
+
+def test_golden_ordem_das_linhas_respeita_registro(golden):
+    posicao = {n.rotulo: n.ordem_rotulo for n in ORDEM_ROTULO}
+    fora_de_ordem = 0
+    for ficha in golden["fichas"].values():
+        ordens = [posicao[l[0]] for l in ficha["linhas"] if len(l) > 3]
+        if ordens != sorted(ordens):
+            fora_de_ordem += 1
+    assert fora_de_ordem == 0
+
+
+def test_golden_unidades_batem_com_registro(golden):
+    unidade_por_rotulo = {n.rotulo: n.unidade for n in ORDEM_ROTULO}
+    divergentes = set()
+    for ficha in golden["fichas"].values():
+        for linha in ficha["linhas"]:
+            if len(linha) > 3 and linha[3] != unidade_por_rotulo[linha[0]]:
+                divergentes.add((linha[0], linha[3]))
+    assert not divergentes, f"unidades divergentes do registro: {divergentes}"

@@ -11,7 +11,9 @@ Particularidades do pipeline, todas deliberadas (docs/REGRAS_DE_NEGOCIO.md):
 - o %VD é calculado sobre o valor já arredondado;
 - acucaresTotais_VD nunca é recalculado (a linha sai em branco no rótulo).
 
-Mudanças aqui alteram rótulos já emitidos: leia BR-006/BR-008 antes.
+Mudanças aqui alteram rótulos já emitidos: leia BR-006/BR-008 antes e rode
+tests/unit/test_paridade_calculo.py, que confere o pipeline contra 1.556 fichas
+reais (docs/TESTES.md).
 """
 from dataclasses import dataclass, field
 

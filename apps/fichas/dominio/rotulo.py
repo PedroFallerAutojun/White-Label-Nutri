@@ -3,7 +3,8 @@
 Transforma os valores gravados na Tabela nas linhas exibidas no rótulo: ordem,
 indentação, formatação numérica, %VD, lupas de advertência e lista de
 ingredientes. O formato é regulado (RDC 429/2020 e IN 75/2020) e não é
-personalizável por instância — ver docs/REGRAS_DE_NEGOCIO.md.
+personalizável por instância — ver docs/REGRAS_DE_NEGOCIO.md. A montagem é
+conferida contra 1.557 rótulos reais em tests/unit/test_paridade_rotulo.py.
 """
 from dataclasses import dataclass
 
