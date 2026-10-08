@@ -20,31 +20,42 @@ próprio se resume à cópia do rótulo para a área de transferência.
 
 ```
 White-Label-Nutri/
-├── config/                  # settings (base/dev/prod), urls, wsgi
-├── apps/
-│   ├── plataforma/          # identidade da instância e comandos de gestão
-│   │   ├── models.py        #   ConfiguracaoInstancia (nome, cor, logotipo, ano de corte)
-│   │   ├── views.py         #   /branding/logotipo — serve o logotipo guardado no banco
-│   │   └── checks.py        #   aviso plataforma.W001 (instância sem configuração)
-│   └── fichas/              # domínio do produto
-│       ├── models.py        #   Membro, Ingrediente, Ficha, Tabela, Ficha_Ingrediente…
-│       ├── views.py         #   todas as telas
-│       ├── forms.py         #   formulários e validações
-│       ├── servicos.py      #   ponte models ↔ domínio (recálculo, conferência)
-│       └── dominio/         #   NÚCLEO PURO, sem Django:
-│           ├── nutrientes.py    #     registro dos 46 nutrientes
-│           ├── calculo.py       #     BR-001..BR-010
-│           ├── arredondamento.py#     BR-006/BR-007
-│           ├── rotulo.py        #     BR-009..BR-014, BR-030
-│           └── lupas_img.py     #     imagens das lupas "ALTO EM"
-├── templates/ · static/
-├── tests/{unit,integration}/
-└── docs/
+├── backend/                     # aplicação Django (Python)
+│   ├── manage.py
+│   ├── config/                  # settings (base/dev/prod), urls, wsgi
+│   ├── apps/
+│   │   ├── plataforma/          # identidade da instância e comandos de gestão
+│   │   │   ├── models.py        #   ConfiguracaoInstancia (nome, cor, logotipo, ano de corte)
+│   │   │   ├── views.py         #   /branding/logotipo — serve o logotipo guardado no banco
+│   │   │   └── checks.py        #   aviso plataforma.W001 (instância sem configuração)
+│   │   └── fichas/              # domínio do produto
+│   │       ├── models.py        #   Membro, Ingrediente, Ficha, Tabela, Ficha_Ingrediente…
+│   │       ├── views.py         #   todas as telas
+│   │       ├── forms.py         #   formulários e validações
+│   │       ├── servicos.py      #   ponte models ↔ domínio (recálculo, conferência)
+│   │       └── dominio/         #   NÚCLEO PURO, sem Django:
+│   │           ├── nutrientes.py    #     registro dos 46 nutrientes
+│   │           ├── calculo.py       #     BR-001..BR-010
+│   │           ├── arredondamento.py#     BR-006/BR-007
+│   │           ├── rotulo.py        #     BR-009..BR-014, BR-030
+│   │           └── lupas_img.py     #     imagens das lupas "ALTO EM"
+│   └── tests/{unit,integration,golden}/
+├── frontend/                    # o que o navegador recebe
+│   ├── templates/               #   páginas (Django Templates)
+│   └── static/                  #   CSS, JS e Bootstrap (vendor/)
+├── docs/
+├── requirements.txt · requirements-dev.txt · Procfile · pytest.ini
 ```
+
+O front-end não é um projeto separado: os templates são renderizados pelo próprio Django
+e os estáticos servidos pelo WhiteNoise, num único deploy. A separação em pastas só deixa
+claro o que é lógica de servidor e o que é apresentação. Os comandos rodam a partir da
+raiz (`python backend/manage.py …`, `pytest`); dependências, `Procfile` e `.env` ficam na
+raiz porque é lá que os provedores PaaS os procuram.
 
 ### O núcleo de domínio é puro
 
-`apps/fichas/dominio/` não importa Django. Recebe números, devolve números. Isso torna
+`backend/apps/fichas/dominio/` não importa Django. Recebe números, devolve números. Isso torna
 todo o cálculo nutricional testável sem banco e impede que uma mudança de tela altere um
 rótulo por acidente. Quem faz a ponte é `servicos.py`: lê a ficha e a receita, chama
 `calculo.calcular()` e grava o resultado na `Tabela` em uma única transação.
@@ -61,7 +72,7 @@ gerar a migration correspondente.
 
 ## Configuração e ambientes
 
-`config/settings/base.py` traz o comum; `dev.py` liga o DEBUG; `prod.py` exige
+`backend/config/settings/base.py` traz o comum; `dev.py` liga o DEBUG; `prod.py` exige
 `SECRET_KEY` e `ALLOWED_HOSTS` (a aplicação **não sobe** sem elas) e aplica as garantias
 de segurança. Tudo o que varia entre instâncias vem de variável de ambiente ou da
 `ConfiguracaoInstancia` — ver [OPERACAO.md](OPERACAO.md).
@@ -103,7 +114,7 @@ implementação.
 | D-013 | Garantias de segurança de produção (lista acima), com HSTS conservador por padrão. |
 | D-014 | Reset de senha por e-mail não exposto; redefinição é feita por um administrador. |
 | D-015 | Listagens paginadas (25 por página) com filtros por GET, para que a busca seja compartilhável por link. |
-| D-016 | Bootstrap servido pela aplicação (`static/vendor/`), sem CDN: funciona offline e não expõe requisições dos clientes a terceiros. |
+| D-016 | Bootstrap servido pela aplicação (`frontend/static/vendor/`), sem CDN: funciona offline e não expõe requisições dos clientes a terceiros. |
 | D-017 | Tabela desatualizada é **detectada e avisada**, nunca recalculada em silêncio: a tela do rótulo compara o gravado com o cálculo atual e oferece um botão de recálculo explícito, ficha a ficha. |
 | D-018 | Número de porções = peso da porção do cliente ÷ peso da porção ANVISA (quantas porções ANVISA cabem na embalagem). |
 | D-020 | O logotipo da empresa é guardado **no banco**, não em arquivo, e servido por `/branding/logotipo` com `Last-Modified`. Heroku, Render e Fly usam disco efêmero: um arquivo enviado pelo cliente sumiria no próximo restart. Como cada empresa tem banco próprio, a identidade visual viaja junto com os dados. |
