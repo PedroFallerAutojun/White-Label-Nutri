@@ -13,8 +13,8 @@ export SECRET_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(64))
 export ALLOWED_HOSTS=nutri.acme.com.br
 export DJANGO_SETTINGS_MODULE=config.settings.prod
 
-python manage.py migrate
-python manage.py bootstrap_instancia \
+python backend/manage.py migrate
+python backend/manage.py bootstrap_instancia \
     --nome "Nutri Acme" --admin ana --email ana@acme.com \
     --chave ACME-2026 --cor "#198754"
 ```
@@ -44,7 +44,7 @@ Sem a linha de configuração o sistema assume os padrões, e o mais silencioso 
 de corte vazio: a lista de ingredientes passa a exibir cargas antigas que a empresa talvez
 esconda de propósito (BR-017). Nada quebra — por isso passaria despercebido.
 
-Para não depender da memória, `manage.py check` avisa enquanto ela não existir, e o aviso
+Para não depender da memória, `backend/manage.py check` avisa enquanto ela não existir, e o aviso
 aparece também no deploy:
 
 ```
@@ -59,12 +59,12 @@ caminho.
 O `Procfile` já traz o necessário para um PaaS (Heroku, Render, Fly e semelhantes):
 
 ```
-release: python manage.py migrate
+release: python backend/manage.py migrate
 web: gunicorn config.wsgi --log-file -
 ```
 
 Requisitos do ambiente: Python 3.12+, um PostgreSQL acessível e as variáveis abaixo. Os
-arquivos estáticos são servidos pelo WhiteNoise — rode `python manage.py collectstatic`
+arquivos estáticos são servidos pelo WhiteNoise — rode `python backend/manage.py collectstatic`
 no build se o seu provedor não o fizer.
 
 ### Variáveis de ambiente
@@ -93,9 +93,9 @@ modelo em `.env.example`.
 ### Conferir tabelas desatualizadas
 
 ```bash
-python manage.py auditar_tabelas               # resumo + 30 fichas
-python manage.py auditar_tabelas --limite 0 --detalhar
-python manage.py auditar_tabelas --so-incoerentes
+python backend/manage.py auditar_tabelas               # resumo + 30 fichas
+python backend/manage.py auditar_tabelas --limite 0 --detalhar
+python backend/manage.py auditar_tabelas --so-incoerentes
 ```
 
 Somente leitura. Separa as fichas em três situações: em dia, **valores defasados** (a
@@ -121,8 +121,8 @@ como material confidencial e nunca no repositório.
 ```bash
 git pull
 pip install -r requirements.txt
-python manage.py migrate
-python manage.py collectstatic --noinput
+python backend/manage.py migrate
+python backend/manage.py collectstatic --noinput
 ```
 
 Rode `pytest` antes de publicar — ver [TESTES.md](TESTES.md).

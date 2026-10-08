@@ -10,6 +10,11 @@ O que o sistema faz e para quem: [docs/VISAO_GERAL.md](docs/VISAO_GERAL.md).
 Django 5.2 LTS · PostgreSQL · Bootstrap 5 · pytest — detalhes em
 [docs/ARQUITETURA.md](docs/ARQUITETURA.md).
 
+## Estrutura
+- `backend/` — a aplicação Django: `config/`, `apps/`, `tests/` e o `manage.py`
+- `frontend/` — `templates/` e `static/` (CSS, JS, Bootstrap), renderizados e servidos pelo próprio Django
+- na raiz — dependências, `Procfile`, `pytest.ini` e `.env`; os comandos rodam daqui
+
 ## Rodando localmente
 
 Requisitos: **Python 3.12+** e **PostgreSQL 14+**.
@@ -20,10 +25,10 @@ pip install -r requirements-dev.txt
 
 createdb nutri                                      # banco local desta instância
 export DATABASE_URL=postgres://postgres:senha@localhost:5432/nutri
-python manage.py migrate
-python manage.py bootstrap_instancia --nome "Nutri Local" \
+python backend/manage.py migrate
+python backend/manage.py bootstrap_instancia --nome "Nutri Local" \
     --admin admin --email admin@exemplo.com --chave CHAVE-LOCAL
-python manage.py runserver
+python backend/manage.py runserver
 ```
 
 A aplicação sobe em <http://localhost:8000>; entre com o usuário criado pelo
@@ -43,8 +48,8 @@ destrói o banco de teste sozinho. Cobertura por camada em [docs/TESTES.md](docs
 ## Provisionar uma empresa nova
 ```bash
 createdb nutri_acme
-DATABASE_URL=postgres://.../nutri_acme python manage.py migrate
-DATABASE_URL=postgres://.../nutri_acme python manage.py bootstrap_instancia \
+DATABASE_URL=postgres://.../nutri_acme python backend/manage.py migrate
+DATABASE_URL=postgres://.../nutri_acme python backend/manage.py bootstrap_instancia \
     --nome "Nutri Acme" --admin ana --email ana@acme.com --chave ACME-2026
 ```
 
@@ -54,8 +59,8 @@ já traz o `migrate` de release e o gunicorn — passo a passo em
 
 ## Manutenção da base
 ```bash
-python manage.py auditar_tabelas            # fichas com tabela defasada ou incoerente
-python manage.py auditar_tabelas --limite 0 --detalhar
+python backend/manage.py auditar_tabelas            # fichas com tabela defasada ou incoerente
+python backend/manage.py auditar_tabelas --limite 0 --detalhar
 ```
 
 ## Configuração

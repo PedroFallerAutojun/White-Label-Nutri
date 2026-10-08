@@ -1,6 +1,6 @@
 # Interface
 
-Layout único (`templates/base.html`): barra superior com **Fichas**, **Ingredientes**,
+Layout único (`frontend/templates/base.html`): barra superior com **Fichas**, **Ingredientes**,
 **Membros**, **Ajuda** e **Sair**, o nome e a cor da empresa vindos da configuração da
 instância, e uma área de mensagens no topo do conteúdo. Bootstrap 5 servido pela própria
 aplicação. As listagens são paginadas de 25 em 25 e os filtros viajam na URL, então uma

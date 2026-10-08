@@ -1,2 +1,2 @@
-release: python manage.py migrate
-web: gunicorn config.wsgi --log-file -
+release: python backend/manage.py migrate
+web: gunicorn --chdir backend config.wsgi --log-file -

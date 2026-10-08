@@ -3,7 +3,7 @@
 O teste de paridade ponta a ponta precisa de uma cópia restaurada da base de
 origem. Defina PARIDADE_DB para apontar o pytest a essa cópia:
 
-    PARIDADE_DB=nutri_paridade pytest tests/integration/test_paridade_rotulo_e2e.py
+    PARIDADE_DB=nutri_paridade pytest backend/tests/integration/test_paridade_rotulo_e2e.py
 
 Sem a variável, o pytest usa o banco de teste normal e o teste e2e é pulado.
 """
