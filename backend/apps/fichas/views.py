@@ -17,10 +17,11 @@ from django.contrib.auth.models import Group, User
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models.functions import Lower
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from apps.fichas import servicos
+from apps.fichas import leitura_rotulo, servicos
 from apps.fichas.busca import contem_palavras
 from apps.fichas.dominio import rotulo
 from apps.fichas.dominio.lupas_img import LUPAS_BASE64
@@ -578,7 +579,11 @@ def registrar_ingrediente(request):
     return render(
         request,
         "ingrediente_form.html",
-        {"form": form, "camposNutrientes": _campos_nutrientes(form)},
+        {
+            "form": form,
+            "camposNutrientes": _campos_nutrientes(form),
+            "leituraRotulo": leitura_rotulo.leitura_habilitada(),
+        },
     )
 
 
@@ -605,6 +610,24 @@ def editar_ingrediente(request, pk):
             "camposNutrientes": _campos_nutrientes(form),
         },
     )
+
+
+@login_required
+@require_POST
+def ler_rotulo_ingrediente(request):
+    """Lê a foto da tabela nutricional e devolve os campos para pré-preencher o
+    formulário (JSON). Não salva nada: a pessoa revisa e salva."""
+    foto = request.FILES.get("foto")
+    if foto is None:
+        return JsonResponse({"erro": "Envie a foto da tabela nutricional."}, status=400)
+    if foto.size > settings.LEITURA_ROTULO_MAX_BYTES:
+        return JsonResponse({"erro": "A foto passa de 15 MB. Envie uma menor."}, status=400)
+    try:
+        return JsonResponse(leitura_rotulo.ler_rotulo(foto.read()))
+    except leitura_rotulo.LeituraIndisponivel:
+        return JsonResponse({"erro": "A leitura por foto não está configurada."}, status=503)
+    except leitura_rotulo.FalhaNaLeitura as erro:
+        return JsonResponse({"erro": str(erro)}, status=422)
 
 
 @login_required

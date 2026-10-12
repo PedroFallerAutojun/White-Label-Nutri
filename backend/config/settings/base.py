@@ -113,3 +113,10 @@ LOGOUT_REDIRECT_URL = "loginUser"
 
 # Grupo com privilégios administrativos da instância
 GRUPO_ADMINISTRADORES = "administradores"
+
+# Leitura da tabela nutricional por foto (apps/fichas/leitura_rotulo.py).
+# Sem chave, o botão "Preencher a partir de foto" não aparece.
+GEMINI_API_KEY = env("GEMINI_API_KEY", default="")
+GEMINI_MODELO = env("GEMINI_MODELO", default="gemini-3.8-flash")
+GEMINI_TIMEOUT = env.float("GEMINI_TIMEOUT", default=45.0)  # segundos
+LEITURA_ROTULO_MAX_BYTES = 15 * 1024 * 1024  # fotos de celular passam de 5 MB

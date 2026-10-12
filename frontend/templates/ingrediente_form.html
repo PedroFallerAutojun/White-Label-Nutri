@@ -1,10 +1,29 @@
 {% extends "base.html" %}
+{% load static %}
 {% block titulo %}{% if ingrediente %}Editar{% else %}Novo{% endif %} ingrediente — {{ instancia_nome }}{% endblock %}
 {% block conteudo %}
 <h1 class="h3 mb-1">{% if ingrediente %}Editar ingrediente{% else %}Novo ingrediente{% endif %}</h1>
 <p class="text-secondary">
   Informe os nutrientes contidos na quantidade indicada — o sistema normaliza tudo para 100 g.
 </p>
+
+{% if leituraRotulo %}
+<div class="card mb-3 border-primary-subtle" data-leitura-rotulo data-url="{% url 'lerRotuloIngrediente' %}">
+  <div class="card-body">
+    <h2 class="h6">Preencher a partir de foto</h2>
+    <p class="small text-secondary mb-2">
+      Fotografe a tabela nutricional inteira, reta e sem reflexo. Os campos lidos ficam
+      destacados — <strong>confira antes de salvar</strong>.
+    </p>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      <label class="btn btn-outline-primary mb-0" for="fotoRotulo">Escolher ou tirar foto</label>
+      <input class="visually-hidden" type="file" id="fotoRotulo" accept="image/*">
+      <span class="small text-secondary" data-leitura-status role="status" aria-live="polite"></span>
+    </div>
+    <ul class="small mt-2 mb-0 text-warning-emphasis" data-leitura-avisos></ul>
+  </div>
+</div>
+{% endif %}
 
 <form method="post" novalidate>
   {% csrf_token %}
@@ -59,4 +78,5 @@
     <a class="btn btn-outline-secondary" href="{% url 'listaIngredientes' %}">Cancelar</a>
   </div>
 </form>
+{% if leituraRotulo %}<script src="{% static 'js/leitura-rotulo.js' %}"></script>{% endif %}
 {% endblock %}

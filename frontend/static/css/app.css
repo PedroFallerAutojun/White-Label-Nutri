@@ -61,3 +61,6 @@
 }
 .busca-sugestoes .dropdown-item.active .text-secondary { color: #fff !important; opacity: 0.85; }
 .busca-sugestoes mark { background-color: rgba(255, 213, 79, 0.6); color: inherit; }
+
+/* Campos preenchidos pela leitura da foto (js/leitura-rotulo.js) */
+.campo-lido { background-color: #fff8db; }
