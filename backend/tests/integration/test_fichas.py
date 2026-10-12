@@ -651,3 +651,20 @@ def test_cadastro_de_ingrediente_agrupa_vitaminas_em_sequencia(logado):
     minerais = corpo.index(">Minerais<")
     for campo in ("id_vitaminaARAE", "id_vitaminaD", "id_tiamina", "id_vitaminaB12"):
         assert vitaminas < corpo.index(f'id="{campo}"') < minerais
+
+
+def test_adicionado_manualmente_saiu_da_tela_sem_perder_o_valor(logado, membro, ingrediente):
+    corpo = logado.get("/registrarIngrediente").content.decode()
+    assert "Adicionado manualmente" not in corpo
+    assert "tabela de origem" in corpo  # ajuda do Nº de referência
+
+    Ingrediente.objects.filter(pk=ingrediente.pk).update(addManualmente=False)
+    logado.post(
+        f"/editarIngrediente/{ingrediente.pk}",
+        {"autorIng": membro.pk, "nomeIng": "Farinha de trigo", "composicao": "",
+         "origemDosDados": "TACO", "qtdeDoIngrediente": 100, "numRef": 7,
+         "dataCriacao": "2024-01-10"},
+    )
+    ingrediente.refresh_from_db()
+    assert ingrediente.numRef == 7
+    assert ingrediente.addManualmente is False

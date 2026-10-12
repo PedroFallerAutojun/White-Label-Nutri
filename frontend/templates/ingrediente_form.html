@@ -39,15 +39,7 @@
         <div class="col-12 col-md-4">{% include "_campo.html" with campo=form.origemDosDados %}</div>
         <div class="col-6 col-md-4">{% include "_campo.html" with campo=form.qtdeDoIngrediente %}</div>
         <div class="col-6 col-md-4">{% include "_campo.html" with campo=form.dataCriacao %}</div>
-        <div class="col-6 col-md-4">{% include "_campo.html" with campo=form.numRef %}</div>
-        <div class="col-6 col-md-4 d-flex align-items-center">
-          <div class="form-check">
-            {{ form.addManualmente }}
-            <label class="form-check-label" for="{{ form.addManualmente.id_for_label }}">
-              {{ form.addManualmente.label }}
-            </label>
-          </div>
-        </div>
+        <div class="col-12 col-md-4">{% include "_campo.html" with campo=form.numRef %}</div>
       </div>
     </div>
   </div>
