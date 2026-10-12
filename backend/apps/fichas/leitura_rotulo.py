@@ -83,8 +83,8 @@ Você lê tabelas de informação nutricional de rótulos brasileiros (ANVISA) e
 - Preencha por_100g com a coluna de 100 g (ou 100 ml) e por_porcao com a coluna da
   porção, quando existirem. Ignore a coluna de %VD.
 - Converta para a unidade pedida em cada campo quando o rótulo usar outra
-  (ex.: µg → mg divide por 1000) e registre a conversão em avisos.
-- Vitamina A no rótulo (em µg RAE) vai em vitaminaARAE, sem conversão.
+  (ex.: μg → mg divide por 1000) e registre a conversão em avisos.
+- Vitamina A no rótulo (em μg RAE) vai em vitaminaARAE, sem conversão.
 - "Zero", "0", "não contém quantidade significativa" e asteriscos que indiquem isso
   viram 0. Nutriente que não aparece no rótulo fica null — não invente valores.
 - Se algum número estiver ilegível, deixe null e explique em avisos.

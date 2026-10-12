@@ -643,3 +643,11 @@ def test_ler_rotulo_com_falha_na_api_mostra_erro_amigavel(logado, settings, monk
 
 def test_ler_rotulo_exige_login(client):
     assert client.post("/lerRotuloIngrediente", {"foto": _foto()}).status_code == 302
+
+
+def test_cadastro_de_ingrediente_agrupa_vitaminas_em_sequencia(logado):
+    corpo = logado.get("/registrarIngrediente").content.decode()
+    vitaminas = corpo.index(">Vitaminas<")
+    minerais = corpo.index(">Minerais<")
+    for campo in ("id_vitaminaARAE", "id_vitaminaD", "id_tiamina", "id_vitaminaB12"):
+        assert vitaminas < corpo.index(f'id="{campo}"') < minerais
