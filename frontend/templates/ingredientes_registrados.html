@@ -62,7 +62,7 @@
             <a class="btn btn-sm btn-outline-secondary"
                href="{% url 'editarIngrediente' ingrediente.pk %}">Editar</a>
             <form method="post" action="{% url 'deletarIngrediente' ingrediente.pk %}"
-                  onsubmit="return confirm('Excluir “{{ ingrediente.nomeIng|escapejs }}”? Ele será removido das receitas que o utilizam.');">
+                  onsubmit="return confirm('Excluir “{{ ingrediente.nome_exibicao|escapejs }}”? Ele será removido das receitas que o utilizam.');">
               {% csrf_token %}
               <button class="btn btn-sm btn-outline-danger" type="submit">Excluir</button>
             </form>

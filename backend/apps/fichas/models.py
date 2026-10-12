@@ -171,7 +171,25 @@ class Ingrediente(models.Model):
 
   # Visualização:
   def __str__(self):
+    return self.nome_exibicao
+
+  @property
+  def nome_exibicao(self):
+    """Nome com a fonte/marca: "Açúcar (Tio Chico)"."""
+    if self.origemDosDados:
+      return f"{self.nomeIng} ({self.origemDosDados})"
     return self.nomeIng
+
+  @classmethod
+  def buscar_por_nome_exibicao(cls, nome, queryset=None):
+    """Inverso de `nome_exibicao`; aceita também só o nome, sem a marca."""
+    qs = cls.objects.all() if queryset is None else queryset
+    base, separador, origem = nome.rpartition(" (")
+    if separador and origem.endswith(")"):
+      escolhido = qs.filter(nomeIng=base, origemDosDados=origem[:-1]).first()
+      if escolhido:
+        return escolhido
+    return qs.filter(nomeIng=nome).first()
 
 # Model das fichas
 class Ficha(models.Model):
