@@ -122,6 +122,7 @@ def _chamar_gemini(jpeg: bytes) -> str:
                 "mime_type": "image/jpeg",
             },
         ],
+        generation_config={"thinking_level": settings.GEMINI_RACIOCINIO},
         response_format={
             "type": "text",
             "mime_type": "application/json",
