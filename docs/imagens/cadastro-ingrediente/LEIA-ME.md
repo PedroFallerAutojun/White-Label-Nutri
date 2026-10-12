@@ -15,5 +15,5 @@ normaliza tudo para 100 g (BR-001), o que aparece na coluna `kcal/100g` da lista
 | `05-formulario-completo.png` | `/registrarIngrediente` | Formulário inteiro pronto para salvar. |
 | `06-ingrediente-cadastrado.png` | `/listaIngredientes` | Confirmação e o ingrediente já normalizado por 100 g. |
 | `07-busca-do-ingrediente.png` | `/listaIngredientes?f_nomeIng=…` | Filtro por nome localizando o registro novo. |
-| `08-nome-duplicado-recusado.png` | `/registrarIngrediente` | Nome repetido é recusado com mensagem de erro. |
+| `08-nome-duplicado-recusado.png` | `/registrarIngrediente` | Nome repetido com a mesma fonte / marca é recusado com mensagem de erro. |
 | `09-upload-em-lote-taco.png` | `/upload` | Alternativa ao cadastro manual: importação em lote do TXT da TACO (BR-023). |

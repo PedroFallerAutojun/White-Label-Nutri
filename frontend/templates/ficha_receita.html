@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 {% block titulo %}Receita: {{ fichaAtual.nomeFicha }} — {{ instancia_nome }}{% endblock %}
 {% block conteudo %}
 <h1 class="h3 mb-1">Receita</h1>
@@ -45,14 +46,15 @@
   <div class="card-body">
     <form method="post" novalidate class="row g-2 align-items-end">
       {% csrf_token %}
-      <div class="col-12 col-lg-4">
+      <div class="col-12 col-lg-4 position-relative" data-busca-ingrediente>
         <label class="form-label" for="ingExtra">Ingrediente</label>
         <input class="form-control" type="text" name="ingExtra" id="ingExtra"
-               list="listaIngredientes" autocomplete="off" required
-               placeholder="Digite para buscar…">
-        <datalist id="listaIngredientes">
-          {% for ingrediente in ingredientes %}<option value="{{ ingrediente.nomeIng }}"></option>{% endfor %}
-        </datalist>
+               autocomplete="off" required placeholder="Nome ou marca…"
+               role="combobox" aria-autocomplete="list" aria-expanded="false"
+               aria-controls="sugestoesIngrediente">
+        <input type="hidden" name="ingId" id="ingId">
+        <ul class="dropdown-menu w-100 busca-sugestoes" id="sugestoesIngrediente" role="listbox"></ul>
+        {{ ingredientesBusca|json_script:"dadosIngredientes" }}
       </div>
       <div class="col-6 col-lg-2">
         <label class="form-label" for="{{ formReceita.nomeFantasia.id_for_label }}">Nome fantasia</label>
@@ -98,7 +100,7 @@
       <tr>
         <td>
           <a href="{% url 'editarIngrediente' item.ingrediente.pk %}" target="_blank" rel="noopener">
-            {{ item.ingrediente.nomeIng }}
+            {{ item.ingrediente.nome_exibicao }}
           </a>
         </td>
         <td>{{ item.nomeFantasia }}</td>
@@ -110,7 +112,7 @@
             <a class="btn btn-sm btn-outline-secondary"
                href="{% url 'editarItemReceita' fichaAtual.pk item.id %}">Editar</a>
             <form method="post" action="{% url 'deletarItemReceita' fichaAtual.pk item.id %}"
-                  onsubmit="return confirm('Remover {{ item.ingrediente.nomeIng|escapejs }} da receita?');">
+                  onsubmit="return confirm('Remover {{ item.ingrediente.nome_exibicao|escapejs }} da receita?');">
               {% csrf_token %}
               <button class="btn btn-sm btn-outline-danger" type="submit"
                       {% if itensReceita|length == 1 %}disabled title="A receita precisa de pelo menos um ingrediente"{% endif %}>
@@ -133,4 +135,5 @@
   <a class="btn btn-outline-secondary" href="{% url 'editarFicha1' fichaAtual.pk %}">Voltar</a>
   <a class="btn btn-primario-instancia" href="{% url 'editarFicha3' fichaAtual.pk %}">Ir para a tabela nutricional</a>
 </div>
+<script src="{% static 'js/busca-ingrediente.js' %}"></script>
 {% endblock %}

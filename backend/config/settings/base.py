@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "whitenoise.runserver_nostatic",
     "django.contrib.staticfiles",
+    "django.contrib.postgres",  # lookup __unaccent das buscas
     "apps.plataforma",
     "apps.fichas",
 ]

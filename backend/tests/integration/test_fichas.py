@@ -1,4 +1,6 @@
 """Testes de integração do wizard de fichas, receita, tabela e rótulo (E3/E4)."""
+import datetime
+
 import pytest
 from django.contrib.auth.models import User
 
@@ -311,16 +313,44 @@ def test_ingrediente_normaliza_para_100g(logado, membro):
     assert ing.proteinas_100g == pytest.approx(10)  # 5 * 100 / 50
 
 
-def test_nome_de_ingrediente_duplicado_e_recusado(logado, membro, ingrediente):
+def test_nome_e_marca_duplicados_sao_recusados(logado, membro, ingrediente):
     resp = logado.post(
         "/registrarIngrediente",
         {"autorIng": membro.pk, "nomeIng": "Farinha de trigo", "composicao": "",
-         "origemDosDados": "X", "qtdeDoIngrediente": 100, "numRef": 0,
+         "origemDosDados": "TACO", "qtdeDoIngrediente": 100, "numRef": 0,
          "dataCriacao": "10/01/2025"},
         follow=True,
     )
-    assert "Já existe um ingrediente com esse nome" in resp.content.decode()
+    assert "Já existe um ingrediente com esse nome e essa fonte / marca" in resp.content.decode()
     assert Ingrediente.objects.filter(nomeIng="Farinha de trigo").count() == 1
+
+
+def test_mesmo_nome_com_outra_marca_e_aceito(logado, membro, ingrediente):
+    logado.post(
+        "/registrarIngrediente",
+        {"autorIng": membro.pk, "nomeIng": "Farinha de trigo", "composicao": "",
+         "origemDosDados": "Tio Chico", "qtdeDoIngrediente": 100, "numRef": 0,
+         "dataCriacao": "10/01/2025"},
+    )
+    assert Ingrediente.objects.filter(nomeIng="Farinha de trigo").count() == 2
+    assert Ingrediente.objects.get(origemDosDados="Tio Chico").nome_exibicao == (
+        "Farinha de trigo (Tio Chico)"
+    )
+
+
+def test_receita_escolhe_ingrediente_pelo_nome_com_marca(logado, ficha, ingrediente, membro):
+    outra = Ingrediente.objects.create(
+        autorIng=membro, nomeIng="Farinha de trigo", origemDosDados="Tio Chico",
+        dataCriacao="2024-01-10", qtdeDoIngrediente=100,
+    )
+    corpo = logado.get(f"/registrarFicha2/{ficha.pk}").content.decode()
+    assert '"marca": "Tio Chico"' in corpo  # dados do autocomplete
+    logado.post(
+        f"/registrarFicha2/{ficha.pk}",
+        {"ingExtra": "Farinha de trigo (Tio Chico)", "nomeFantasia": "Farinha",
+         "pesoBruto": 100, "pesoLiquido": 100, "medidaCaseira": ""},
+    )
+    assert Ficha_Ingrediente.objects.get().ingrediente == outra
 
 
 def test_corte_por_ano_e_configuracao_da_instancia(logado, membro):
@@ -509,3 +539,41 @@ def test_auditoria_lista_fichas_desatualizadas(logado, ficha, ingrediente, capsy
     texto = saida.getvalue()
     assert "porcao INCOERENTE no rotulo:       1" in texto.replace("   1", "       1") or "INCOERENTE" in texto
     assert str(ficha.pk) in texto
+
+
+def test_receita_aceita_ingrediente_pelo_id_do_autocomplete(logado, ficha, ingrediente):
+    logado.post(
+        f"/registrarFicha2/{ficha.pk}",
+        {"ingExtra": "texto qualquer", "ingId": ingrediente.pk, "nomeFantasia": "Farinha",
+         "pesoBruto": 10, "pesoLiquido": 10, "medidaCaseira": ""},
+    )
+    assert Ficha_Ingrediente.objects.get().ingrediente == ingrediente
+
+
+def test_filtro_de_ingredientes_ignora_acentos_e_ordem(logado, membro):
+    Ingrediente.objects.create(
+        autorIng=membro, nomeIng="Açúcar de confeiteiro", origemDosDados="União",
+        dataCriacao="2024-01-10", qtdeDoIngrediente=100,
+    )
+    Ingrediente.objects.create(
+        autorIng=membro, nomeIng="Sal refinado", origemDosDados="Cisne",
+        dataCriacao="2024-01-10", qtdeDoIngrediente=100,
+    )
+    corpo = logado.get(
+        "/listaIngredientes", {"f_nomeIng": "CONFEITEIRO acucar", "f_origemDosDados": "uniao"}
+    ).content.decode()
+    assert "Açúcar de confeiteiro" in corpo
+    assert "Sal refinado" not in corpo
+
+
+def test_filtro_de_fichas_ignora_acentos_e_maiusculas(logado, ficha):
+    corpo = logado.get("/listaFichas", {"f_nomeFicha": "pao de TESTE"}).content.decode()
+    assert "Pão de teste" in corpo
+
+
+def test_datas_usam_calendario_com_hoje_como_padrao(logado):
+    hoje = datetime.date.today().isoformat()
+    for url in ("/registrarFicha1", "/registrarIngrediente"):
+        corpo = logado.get(url).content.decode()
+        assert 'type="date"' in corpo
+        assert f'value="{hoje}"' in corpo
