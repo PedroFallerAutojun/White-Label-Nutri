@@ -16,12 +16,12 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import Group, User
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Q
 from django.db.models.functions import Lower
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from apps.fichas import servicos
+from apps.fichas.busca import contem_palavras
 from apps.fichas.dominio import rotulo
 from apps.fichas.dominio.lupas_img import LUPAS_BASE64
 from apps.fichas.dominio.nutrientes import NUTRIENTES, POR_CHAVE
@@ -94,10 +94,11 @@ def lista_fichas(request):
     fichas = Ficha.objects.select_related("autor").order_by("-dataCriacao", "-id")
     form_filtro = FichaFiltroForm(request.GET or None)
     if form_filtro.is_valid():
+        dados = form_filtro.cleaned_data
         fichas = fichas.filter(
-            Q(nomeFicha__contains=form_filtro.cleaned_data["f_nomeFicha"])
-            & Q(cliente__contains=form_filtro.cleaned_data["f_cliente"])
-            & Q(autor__nome__contains=form_filtro.cleaned_data["f_autor"])
+            contem_palavras("nomeFicha", dados["f_nomeFicha"])
+            & contem_palavras("cliente", dados["f_cliente"])
+            & contem_palavras("autor__nome", dados["f_autor"])
         )
     pagina, filtros = _paginar(request, fichas)
     return render(
@@ -152,8 +153,12 @@ def editar_ficha_receita(request, pk):
             )
             return redirect("editarFicha2", pk=pk)
 
-        nome = request.POST.get("ingExtra", "")
-        escolhido = Ingrediente.objects.filter(nomeIng=nome).first()
+        # o autocomplete envia o id; sem JS, vale o nome digitado
+        escolhido = None
+        if request.POST.get("ingId", "").isdigit():
+            escolhido = Ingrediente.objects.filter(pk=request.POST["ingId"]).first()
+        if escolhido is None:
+            escolhido = Ingrediente.buscar_por_nome_exibicao(request.POST.get("ingExtra", ""))
         if escolhido is None:
             messages.error(request, "Ingrediente para adicionar a receita não foi encontrado")
             return redirect("editarFicha2", pk=pk)
@@ -163,7 +168,7 @@ def editar_ficha_receita(request, pk):
         item.ingrediente = escolhido
         item.save()
         servicos.recalcular_tabela(ficha)
-        messages.success(request, f"{escolhido.nomeIng} adicionado à receita.")
+        messages.success(request, f"{escolhido.nome_exibicao} adicionado à receita.")
         return redirect("editarFicha2", pk=pk)
 
     return render(
@@ -177,7 +182,10 @@ def editar_ficha_receita(request, pk):
             ),
             "tabelaNutricional": tabela,
             "nutrientesExtras": Nutriente.objects.filter(origemTabela=tabela),
-            "ingredientes": _ingredientes_disponiveis(),
+            "ingredientesBusca": [
+                {"id": i.pk, "nome": i.nomeIng, "marca": i.origemDosDados}
+                for i in _ingredientes_disponiveis().only("nomeIng", "origemDosDados")
+            ],
             "passo": 2,
         },
     )
@@ -506,10 +514,11 @@ def lista_ingredientes(request):
     form_filtro = IngredienteFiltroForm(request.GET or None)
     if form_filtro.is_valid():
         # o filtro respeita o mesmo recorte da listagem (BR-017)
+        dados = form_filtro.cleaned_data
         ingredientes = ingredientes.filter(
-            Q(nomeIng__icontains=form_filtro.cleaned_data["f_nomeIng"])
-            & Q(origemDosDados__icontains=form_filtro.cleaned_data["f_origemDosDados"])
-            & Q(autorIng__nome__icontains=form_filtro.cleaned_data["f_autorIng"])
+            contem_palavras("nomeIng", dados["f_nomeIng"])
+            & contem_palavras("origemDosDados", dados["f_origemDosDados"])
+            & contem_palavras("autorIng__nome", dados["f_autorIng"])
         )
     pagina, filtros = _paginar(request, ingredientes)
     return render(
@@ -540,20 +549,31 @@ def _campos_nutrientes(form):
     return campos
 
 
+def _mesmo_nome_e_marca(form):
+    """O mesmo nome pode existir com fontes/marcas diferentes."""
+    return Ingrediente.objects.filter(
+        nomeIng=form.cleaned_data["nomeIng"],
+        origemDosDados=form.cleaned_data["origemDosDados"],
+    )
+
+
+MSG_INGREDIENTE_DUPLICADO = (
+    "Já existe um ingrediente com esse nome e essa fonte / marca. "
+    "Não foi possível realizar o cadastro."
+)
+
+
 @login_required
 def registrar_ingrediente(request):
     form = IngredienteForm(request.POST or None)
     if form.is_valid():
-        if Ingrediente.objects.filter(nomeIng=form.cleaned_data["nomeIng"]).exists():
-            messages.error(
-                request,
-                "Já existe um ingrediente com esse nome. Não foi possível realizar o cadastro.",
-            )
+        if _mesmo_nome_e_marca(form).exists():
+            messages.error(request, MSG_INGREDIENTE_DUPLICADO)
         else:
             ingrediente = form.save(commit=False)
             servicos.normalizar_100g(ingrediente)
             ingrediente.save()
-            messages.success(request, f"Ingrediente {ingrediente.nomeIng} cadastrado.")
+            messages.success(request, f"Ingrediente {ingrediente.nome_exibicao} cadastrado.")
             return redirect("listaIngredientes")
     return render(
         request,
@@ -567,16 +587,8 @@ def editar_ingrediente(request, pk):
     ingrediente = get_object_or_404(Ingrediente, pk=pk)
     form = IngredienteForm(request.POST or None, instance=ingrediente)
     if request.method == "POST" and form.is_valid():
-        duplicado = (
-            Ingrediente.objects.filter(nomeIng=form.cleaned_data["nomeIng"])
-            .exclude(pk=ingrediente.pk)
-            .exists()
-        )
-        if duplicado:
-            messages.error(
-                request,
-                "Já existe um ingrediente com esse nome. Não foi possível realizar o cadastro.",
-            )
+        if _mesmo_nome_e_marca(form).exclude(pk=ingrediente.pk).exists():
+            messages.error(request, MSG_INGREDIENTE_DUPLICADO)
         else:
             atualizado = form.save(commit=False)
             servicos.normalizar_100g(atualizado)
@@ -600,7 +612,7 @@ def editar_ingrediente(request, pk):
 def deletar_ingrediente(request, pk):
     ingrediente = get_object_or_404(Ingrediente, pk=pk)
     em_uso = Ficha_Ingrediente.objects.filter(ingrediente=ingrediente).count()
-    nome = ingrediente.nomeIng
+    nome = ingrediente.nome_exibicao
     ingrediente.delete()
     if em_uso:
         messages.warning(
@@ -666,9 +678,9 @@ def upload(request):
             )
             _, criado = Ingrediente.objects.update_or_create(
                 nomeIng=coluna[2],
+                origemDosDados=coluna[0],
                 defaults={
                     "autorIng": autor,
-                    "origemDosDados": coluna[0],
                     "addManualmente": True,
                     "numRef": int(float(coluna[1] or 0)),
                     "dataCriacao": "2019-09-26",

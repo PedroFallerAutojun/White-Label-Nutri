@@ -1,4 +1,6 @@
 """Formulários das telas de ficha, receita, ingrediente e membro."""
+import datetime
+
 from django import forms
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
@@ -27,6 +29,17 @@ def aplicar_classes_bootstrap(form):
             widget.attrs.setdefault("class", "form-control")
 
 
+def campo_data(rotulo):
+    """Data com calendário do navegador (<input type="date">), hoje como padrão.
+    O navegador envia AAAA-MM-DD; DD/MM/AAAA continua aceito para quem digita."""
+    return forms.DateField(
+        label=rotulo,
+        initial=datetime.date.today,
+        widget=forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+        input_formats=["%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"],
+    )
+
+
 class LoginForm(forms.Form):
     username = forms.CharField(label="Nome", required=True)
     password = forms.CharField(label="Senha", required=True, widget=forms.PasswordInput)
@@ -39,12 +52,7 @@ class FichaFiltroForm(forms.Form):
 
 
 class FichaFormBase(forms.ModelForm):
-    dataCriacao = forms.DateField(
-        label="Data de criação",
-        widget=forms.DateInput(format="%d/%m/%Y"),
-        input_formats=["%d/%m/%Y", "%d-%m-%Y"],
-        help_text="Formato: DD/MM/YYYY ou DD-MM-YYYY",
-    )
+    dataCriacao = campo_data("Data de criação")
 
     class Meta:
         model = Ficha
@@ -114,12 +122,7 @@ class FormInformacoesComplementares(forms.ModelForm):
 
 
 class IngredienteForm(forms.ModelForm):
-    dataCriacao = forms.DateField(
-        label="Data de criação",
-        widget=forms.DateInput(format="%d/%m/%Y"),
-        input_formats=["%d/%m/%Y", "%d-%m-%Y"],
-        help_text="Formato: DD/MM/YYYY ou DD-MM-YYYY",
-    )
+    dataCriacao = campo_data("Data de criação")
     composicao = forms.CharField(
         label="Composição",
         help_text="Formato: leite, açúcar e lactose",

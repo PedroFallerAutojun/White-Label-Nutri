@@ -47,3 +47,17 @@
   background-color: var(--cor-primaria);
   color: #fff;
 }
+
+/* Autocomplete de ingredientes (js/busca-ingrediente.js) */
+.busca-sugestoes {
+  top: 100%;
+  max-height: 20rem;
+  overflow-y: auto;
+}
+.busca-sugestoes .dropdown-item { cursor: pointer; }
+.busca-sugestoes .dropdown-item.active {
+  background-color: var(--cor-primaria);
+  color: #fff;
+}
+.busca-sugestoes .dropdown-item.active .text-secondary { color: #fff !important; opacity: 0.85; }
+.busca-sugestoes mark { background-color: rgba(255, 213, 79, 0.6); color: inherit; }
