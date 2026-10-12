@@ -90,3 +90,10 @@ def test_preparar_imagem_reduz_e_converte_para_jpeg():
 def test_arquivo_que_nao_e_imagem_e_recusado():
     with pytest.raises(lr.FalhaNaLeitura, match="abrir a imagem"):
         lr.preparar_imagem(b"isto nao e uma imagem")
+
+
+def test_vitamina_a_e_pedida_em_microgramas_como_na_taco():
+    """Os dados da TACO guardam retinol/RE/RAE em μg; pedir mg dividiria por 1000."""
+    propriedades = lr.LeituraRotulo.model_json_schema()["$defs"]["Nutrientes"]["properties"]
+    for chave in ("retinol", "RE", "vitaminaARAE"):
+        assert propriedades[chave]["description"].endswith("em μg")

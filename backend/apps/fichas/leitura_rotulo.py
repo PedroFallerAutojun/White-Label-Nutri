@@ -13,7 +13,7 @@ from django.conf import settings
 from PIL import Image, ImageOps, UnidentifiedImageError
 from pydantic import BaseModel, Field, ValidationError, create_model
 
-from apps.fichas.dominio.nutrientes import NUTRIENTES
+from apps.fichas.dominio.nutrientes import NUTRIENTES, unidade_armazenada
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ Nutrientes = create_model(
     **{
         n.chave: (
             Valor | None,
-            Field(default=None, description=f"{_rotulo(n)}, em {n.unidade}"),
+            Field(default=None, description=f"{_rotulo(n)}, em {unidade_armazenada(n)}"),
         )
         for n in NUTRIENTES
     },
@@ -83,7 +83,13 @@ Você lê tabelas de informação nutricional de rótulos brasileiros (ANVISA) e
 - Preencha por_100g com a coluna de 100 g (ou 100 ml) e por_porcao com a coluna da
   porção, quando existirem. Ignore a coluna de %VD.
 - Converta para a unidade pedida em cada campo quando o rótulo usar outra
-  (ex.: µg → mg divide por 1000) e registre a conversão em avisos.
+  (ex.: μg → mg divide por 1000) e registre a conversão em avisos.
+- Vitamina A vai em UM só campo, sem converter nem copiar para os outros:
+  "RAE" ou "EAR" → vitaminaARAE; "RE" ou "ER" → RE; "retinol" → retinol.
+  Se o rótulo não especificar: com coluna de 100 g (rótulo novo) → vitaminaARAE;
+  só com a porção (rótulo antigo) → RE. Diga em avisos qual campo usou e por quê,
+  chamando-o de "Vitamina A — RAE", "Vitamina A — RE" ou "Vitamina A — retinol".
+- Nos avisos, use os nomes dos nutrientes em português, nunca os nomes dos campos.
 - "Zero", "0", "não contém quantidade significativa" e asteriscos que indiquem isso
   viram 0. Nutriente que não aparece no rótulo fica null — não invente valores.
 - Se algum número estiver ilegível, deixe null e explique em avisos.

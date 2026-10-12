@@ -25,7 +25,13 @@ from apps.fichas import leitura_rotulo, servicos
 from apps.fichas.busca import contem_palavras
 from apps.fichas.dominio import rotulo
 from apps.fichas.dominio.lupas_img import LUPAS_BASE64
-from apps.fichas.dominio.nutrientes import NUTRIENTES, POR_CHAVE
+from apps.fichas.dominio.nutrientes import (
+    GRUPOS_CADASTRO,
+    NUTRIENTES,
+    POR_CHAVE,
+    ROTULO_CADASTRO,
+    unidade_armazenada,
+)
 from apps.fichas.forms import (
     ApagarMembroForm,
     ChaveForm,
@@ -536,18 +542,26 @@ def lista_ingredientes(request):
 
 
 def _campos_nutrientes(form):
-    """Campos de nutrientes do formulário, com rótulo e unidade do registro."""
-    campos = []
-    for n in NUTRIENTES:
-        if n.chave in form.fields:
-            campos.append(
-                {
-                    "campo": form[n.chave],
-                    "rotulo": n.rotulo or "Valor energético (kJ)",
-                    "unidade": n.unidade,
-                }
-            )
-    return campos
+    """Campos de nutrientes do formulário agrupados como numa tabela nutricional
+    (GRUPOS_CADASTRO), com a unidade em que o valor é guardado."""
+    def item(chave):
+        n = POR_CHAVE[chave]
+        return {
+            "campo": form[chave],
+            "rotulo": ROTULO_CADASTRO.get(chave) or n.rotulo,
+            "unidade": unidade_armazenada(n),
+        }
+
+    grupos = [
+        {"titulo": titulo, "campos": [item(c) for c in chaves if c in form.fields]}
+        for titulo, chaves in GRUPOS_CADASTRO
+    ]
+    agrupados = {c for _, chaves in GRUPOS_CADASTRO for c in chaves}
+    restantes = [item(n.chave) for n in NUTRIENTES
+                 if n.chave in form.fields and n.chave not in agrupados]
+    if restantes:
+        grupos.append({"titulo": "Outros", "campos": restantes})
+    return grupos
 
 
 def _mesmo_nome_e_marca(form):
