@@ -85,3 +85,14 @@ ORDEM_ROTULO: tuple[NutrienteDef, ...] = tuple(
     sorted((n for n in NUTRIENTES if n.ordem_rotulo is not None),
            key=lambda n: n.ordem_rotulo)
 )
+
+# Unidade em que o valor está GUARDADO no ingrediente, quando difere de `unidade`.
+# Os dados da TACO trazem retinol, RE e RAE em µg (fígado bovino: 14.574 µg/100 g),
+# mas o registro acima exibe "mg". Usado no cadastro de ingrediente e na leitura
+# por foto; o rótulo final continua usando `unidade` (não alterado aqui).
+UNIDADE_ARMAZENADA: dict[str, str] = {"retinol": "µg", "RE": "µg", "vitaminaARAE": "µg"}
+
+
+def unidade_armazenada(n: NutrienteDef) -> str:
+    return UNIDADE_ARMAZENADA.get(n.chave, n.unidade)
+

@@ -25,7 +25,7 @@ from apps.fichas import leitura_rotulo, servicos
 from apps.fichas.busca import contem_palavras
 from apps.fichas.dominio import rotulo
 from apps.fichas.dominio.lupas_img import LUPAS_BASE64
-from apps.fichas.dominio.nutrientes import NUTRIENTES, POR_CHAVE
+from apps.fichas.dominio.nutrientes import NUTRIENTES, POR_CHAVE, unidade_armazenada
 from apps.fichas.forms import (
     ApagarMembroForm,
     ChaveForm,
@@ -544,7 +544,7 @@ def _campos_nutrientes(form):
                 {
                     "campo": form[n.chave],
                     "rotulo": n.rotulo or "Valor energético (kJ)",
-                    "unidade": n.unidade,
+                    "unidade": unidade_armazenada(n),
                 }
             )
     return campos
